@@ -91,8 +91,16 @@ pnpm test:shared         # 仅运行 shared 包测试
 - 测试放在同包的 `__tests__/` 目录，文件名 `*.test.ts`
 - 提交信息用 conventional commits 格式（`feat:` / `fix:` / `test:` 等）
 
-## 设计文档
+## 文档规范
+
+### 设计文档
 
 - 设计文档：`docs/plans/2026-03-02-doudizhu-design.md`
 - 实施计划：`docs/plans/2026-03-02-doudizhu-implementation.md`
 - 审核报告：`docs/plans/2026-03-02-design-review.md`
+
+### Code Review 文档
+
+- 目录：`docs/code-review/`
+- 文件名格式：`YYYY-MM-DD-<主要功能点>.md`（如 `2026-03-02-rules-engine.md`）
+- 修复完成后，将修复总结追加在文档末尾

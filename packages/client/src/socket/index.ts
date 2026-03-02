@@ -3,7 +3,8 @@ import type { ClientEvents, ServerEvents } from "@blitzlord/shared";
 
 type TypedSocket = Socket<ServerEvents, ClientEvents>;
 
-const SERVER_URL = "http://localhost:3001";
+// 默认通过 Vite 代理（同源），也可通过环境变量直连服务端
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
 
 function getToken(): string {
   let token = localStorage.getItem("playerId");
@@ -19,10 +20,11 @@ let socket: TypedSocket | null = null;
 export function getSocket(): TypedSocket {
   if (!socket) {
     const token = getToken();
-    socket = io(SERVER_URL, {
+    const opts = {
       auth: { token, playerName: localStorage.getItem("playerName") || "玩家" },
       autoConnect: false,
-    }) as TypedSocket;
+    };
+    socket = (SERVER_URL ? io(SERVER_URL, opts) : io(opts)) as TypedSocket;
   }
   return socket;
 }

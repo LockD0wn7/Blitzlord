@@ -1,0 +1,21 @@
+{
+  "name": "Blitzlord",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "features": {
+    "ghcr.io/devcontainers-extra/features/pnpm:1": {}
+  },
+  "postCreateCommand": "pnpm install",
+  "forwardPorts": [3001, 5173],
+  "portsAttributes": {
+    "3001": { "label": "Server", "onAutoForward": "silent" },
+    "5173": { "label": "Client", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bradlc.vscode-tailwindcss",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}

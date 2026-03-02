@@ -7,8 +7,9 @@ import { GameManager } from "./game/GameManager.js";
 import { createHandlers } from "./socket/handlers.js";
 
 const httpServer = createServer();
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
 const io = new Server<ClientEvents, ServerEvents>(httpServer, {
-  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
+  cors: { origin: corsOrigin, methods: ["GET", "POST"] },
 });
 
 const sessionManager = new SessionManager();

@@ -1,0 +1,16 @@
+{
+  "name": "blitzlord",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "dev:server": "pnpm --filter @blitzlord/server dev",
+    "dev:client": "pnpm --filter @blitzlord/client dev",
+    "test": "pnpm -r test",
+    "test:shared": "pnpm --filter @blitzlord/shared test",
+    "build": "pnpm --parallel -r build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

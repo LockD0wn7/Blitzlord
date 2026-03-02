@@ -23,5 +23,8 @@ Thumbs.db
 # Tailwind
 .tailwindcss/
 
+# Build
+*.tsbuildinfo
+
 # Test
 coverage/

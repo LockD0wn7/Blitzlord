@@ -1,7 +1,7 @@
 {
   "name": "Blitzlord",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
-  "postCreateCommand": "corepack enable && corepack prepare pnpm@latest --activate && pnpm install",
+  "postCreateCommand": "npm install -g pnpm && pnpm install",
   "forwardPorts": [3001, 5173],
   "portsAttributes": {
     "3001": { "label": "Server", "onAutoForward": "silent" },

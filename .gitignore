@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+*.local
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tailwind
+.tailwindcss/
+
+# Test
+coverage/

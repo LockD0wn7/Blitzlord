@@ -1,20 +1,21 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
+import type { ClientEvents, ServerEvents } from "@blitzlord/shared";
+import { SessionManager } from "./session/SessionManager.js";
+import { RoomManager } from "./room/RoomManager.js";
+import { GameManager } from "./game/GameManager.js";
+import { createHandlers } from "./socket/handlers.js";
 
 const httpServer = createServer();
-const io = new Server(httpServer, {
-  cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
-  },
+const io = new Server<ClientEvents, ServerEvents>(httpServer, {
+  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] },
 });
 
-io.on("connection", (socket) => {
-  console.log(`[connected] ${socket.id}`);
-  socket.on("disconnect", () => {
-    console.log(`[disconnected] ${socket.id}`);
-  });
-});
+const sessionManager = new SessionManager();
+const roomManager = new RoomManager();
+const games = new Map<string, GameManager>();
+
+io.on("connection", createHandlers({ io, roomManager, sessionManager, games }));
 
 const PORT = 3001;
 httpServer.listen(PORT, () => {

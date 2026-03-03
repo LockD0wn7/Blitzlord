@@ -249,29 +249,40 @@ export default function GameBoard() {
     lastPlay.playerId !== token;
 
   return (
-    <div className="min-h-screen bg-green-900 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen flex flex-col relative overflow-hidden game-table-bg">
+      {/* 暗角遮罩 */}
+      <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_50%_50%,_transparent_30%,_rgba(9,13,25,0.6)_100%)]" />
+
       {/* 错误提示 */}
       {errorMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-2 rounded-lg shadow-lg animate-pulse">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-crimson/90 backdrop-blur-md text-warm px-6 py-2.5 rounded-xl shadow-lg animate-slide-down text-sm">
           {errorMessage}
         </div>
       )}
 
       {/* 游戏信息栏 */}
-      <div className="flex items-center justify-between px-4 py-2 bg-green-800/80">
-        <div className="text-green-300 text-sm">
+      <div className="relative z-10 flex items-center justify-between px-5 py-2.5 bg-surface/50 backdrop-blur-md border-b border-surface-border/30">
+        <div className="text-muted text-sm">
           房间: {roomId}
         </div>
         <div className="flex items-center gap-4 text-sm">
           {baseBid > 0 && (
-            <span className="text-yellow-300">叫分: {baseBid}</span>
+            <span className="text-gold font-medium">叫分: {baseBid}</span>
           )}
           {bombCount > 0 && (
-            <span className="text-orange-300">炸弹: {bombCount}</span>
+            <span className="text-orange-400 font-medium">炸弹: {bombCount}</span>
           )}
-          {rocketUsed && <span className="text-red-300">火箭!</span>}
+          {rocketUsed && <span className="text-crimson font-bold">火箭!</span>}
         </div>
-        <div className="text-green-300 text-sm">
+        <div
+          className={`text-sm font-cn font-semibold ${
+            myRole === PlayerRole.Landlord
+              ? "text-gold"
+              : myRole === PlayerRole.Peasant
+              ? "text-jade"
+              : "text-muted"
+          }`}
+        >
           {myRole === PlayerRole.Landlord
             ? "地主"
             : myRole === PlayerRole.Peasant
@@ -280,8 +291,8 @@ export default function GameBoard() {
         </div>
       </div>
 
-      {/* 上方对手区域 */}
-      <div className="flex justify-between px-8 pt-4 pb-2">
+      {/* 对手区域 */}
+      <div className="relative z-10 flex justify-between px-8 pt-4 pb-2">
         {opponents.left && (
           <OpponentArea
             playerName={opponents.left.playerName}
@@ -306,10 +317,8 @@ export default function GameBoard() {
 
       {/* 底牌区 */}
       {bottomCards.length > 0 && (
-        <div className="flex justify-center gap-1 py-1">
-          <span className="text-green-400 text-xs mr-2 self-center">
-            底牌:
-          </span>
+        <div className="relative z-10 flex justify-center items-center gap-1 py-1.5">
+          <span className="text-muted text-xs mr-2">底牌:</span>
           {bottomCards.map((card, index) => (
             <CardComponent
               key={`bottom-${card.rank}-${card.suit}-${index}`}
@@ -321,7 +330,7 @@ export default function GameBoard() {
       )}
 
       {/* 中间出牌区域 */}
-      <div className="flex-1 flex items-center justify-center px-8">
+      <div className="relative z-10 flex-1 flex items-center justify-center px-8">
         {phase === GamePhase.Calling ? (
           <CallLandlord isMyTurn={isMyTurn} />
         ) : phase === GamePhase.Playing || phase === GamePhase.Ended ? (
@@ -331,16 +340,16 @@ export default function GameBoard() {
             playerNames={playerNames}
           />
         ) : (
-          <div className="text-green-400 text-lg">等待游戏开始...</div>
+          <div className="text-muted text-lg font-cn">等待游戏开始...</div>
         )}
       </div>
 
-      {/* 下方自己手牌 + 操作栏 */}
-      <div className="px-4 pb-4">
+      {/* 下方手牌 + 操作栏 */}
+      <div className="relative z-10 px-4 pb-4">
         {/* 当前轮次提示 */}
         {isMyTurn && phase === GamePhase.Playing && (
           <div className="text-center mb-2">
-            <span className="text-yellow-400 font-bold animate-pulse">
+            <span className="inline-block px-5 py-1 rounded-full bg-gold/10 border border-gold/30 text-gold font-cn font-bold text-sm animate-glow-pulse">
               轮到你出牌
             </span>
           </div>
@@ -357,7 +366,7 @@ export default function GameBoard() {
         </div>
       </div>
 
-      {/* 游戏结算面板 */}
+      {/* 游戏结算 */}
       {phase === GamePhase.Ended && gameResult && <ScoreBoard />}
     </div>
   );

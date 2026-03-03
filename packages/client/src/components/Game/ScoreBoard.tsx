@@ -24,16 +24,16 @@ export default function ScoreBoard() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-green-800 rounded-2xl shadow-2xl p-8 w-full max-w-md">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-surface/95 backdrop-blur-xl rounded-2xl border border-surface-border/60 shadow-[0_8px_40px_rgba(0,0,0,0.5)] p-8 w-full max-w-md animate-slide-up">
         {/* 标题 */}
         <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold text-yellow-400 mb-2">
+          <h2 className="font-cn text-3xl font-bold text-gold-light mb-2">
             游戏结束
           </h2>
-          <p className="text-white text-lg">
+          <p className="text-warm text-lg">
             {winnerName}{" "}
-            <span className="text-yellow-300">
+            <span className="text-gold">
               ({winnerRole === PlayerRole.Landlord ? "地主" : "农民"})
             </span>{" "}
             获胜！
@@ -42,24 +42,24 @@ export default function ScoreBoard() {
 
         {/* 倍率明细 */}
         {sampleScore && (
-          <div className="bg-green-700/50 rounded-lg p-4 mb-6 border border-green-600/50">
-            <h3 className="text-green-200 font-semibold mb-3">倍率明细</h3>
+          <div className="bg-base-light/50 rounded-xl p-4 mb-6 border border-surface-border/40">
+            <h3 className="text-warm-muted font-cn font-semibold mb-3">倍率明细</h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <span className="text-green-300">叫分倍率</span>
-              <span className="text-white text-right">
+              <span className="text-muted">叫分倍率</span>
+              <span className="text-warm text-right">
                 x{sampleScore.baseBid}
               </span>
-              <span className="text-green-300">炸弹数</span>
-              <span className="text-white text-right">
+              <span className="text-muted">炸弹数</span>
+              <span className="text-warm text-right">
                 {sampleScore.bombCount} (x
                 {Math.pow(2, sampleScore.bombCount)})
               </span>
-              <span className="text-green-300">火箭</span>
-              <span className="text-white text-right">
+              <span className="text-muted">火箭</span>
+              <span className="text-warm text-right">
                 {sampleScore.rocketUsed ? "是 (x2)" : "否"}
               </span>
-              <span className="text-green-300">春天</span>
-              <span className="text-white text-right">
+              <span className="text-muted">春天</span>
+              <span className="text-warm text-right">
                 {sampleScore.isSpring ? "是 (x2)" : "否"}
               </span>
             </div>
@@ -75,23 +75,23 @@ export default function ScoreBoard() {
             return (
               <div
                 key={player.playerId}
-                className={`flex items-center justify-between rounded-lg px-4 py-2 ${
+                className={`flex items-center justify-between rounded-xl px-4 py-2.5 border transition-all ${
                   isWinner
-                    ? "bg-yellow-500/20 border border-yellow-400/50"
-                    : "bg-green-700/30 border border-green-600/30"
+                    ? "bg-gold/10 border-gold/30"
+                    : "bg-base-light/30 border-surface-border/30"
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-white font-medium">
+                  <span className="text-warm font-medium">
                     {player.playerName}
                   </span>
                   {player.role === PlayerRole.Landlord && (
-                    <span className="text-yellow-400 text-xs">[地主]</span>
+                    <span className="text-gold text-xs font-bold">[地主]</span>
                   )}
                 </div>
                 <span
                   className={`font-bold text-lg ${
-                    score.finalScore > 0 ? "text-green-300" : "text-red-400"
+                    score.finalScore > 0 ? "text-jade" : score.finalScore < 0 ? "text-crimson" : "text-warm"
                   }`}
                 >
                   {score.finalScore > 0 ? "+" : ""}
@@ -105,7 +105,7 @@ export default function ScoreBoard() {
         {/* 再来一局 */}
         <button
           onClick={handleBackToRoom}
-          className="w-full py-3 rounded-lg font-bold text-lg transition-colors bg-yellow-500 text-green-900 hover:bg-yellow-400"
+          className="btn-gold w-full py-3 rounded-xl text-lg"
         >
           再来一局
         </button>

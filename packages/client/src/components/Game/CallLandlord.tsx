@@ -29,13 +29,13 @@ export default function CallLandlord({ isMyTurn }: CallLandlordProps) {
   );
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <h3 className="text-yellow-300 font-bold text-lg">请叫分</h3>
+    <div className="flex flex-col items-center gap-4 animate-fade-in">
+      <h3 className="text-gold font-cn font-bold text-lg">请叫分</h3>
       <div className="flex items-center gap-3">
         <button
           onClick={() => handleBid(0)}
           disabled={!isMyTurn}
-          className="px-5 py-2 rounded-lg font-bold transition-colors bg-gray-600 text-white hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+          className="btn-ghost px-5 py-2 rounded-lg font-bold"
         >
           不叫
         </button>
@@ -44,7 +44,7 @@ export default function CallLandlord({ isMyTurn }: CallLandlordProps) {
             key={bid}
             onClick={() => handleBid(bid)}
             disabled={!isMyTurn || bid <= maxBid}
-            className="px-5 py-2 rounded-lg font-bold transition-colors bg-yellow-500 text-green-900 hover:bg-yellow-400 disabled:bg-green-700 disabled:text-green-500 disabled:cursor-not-allowed"
+            className="btn-gold px-5 py-2 rounded-lg"
           >
             {bid} 分
           </button>
@@ -52,9 +52,9 @@ export default function CallLandlord({ isMyTurn }: CallLandlordProps) {
       </div>
       {/* 叫分记录 */}
       {callSequence.length > 0 && (
-        <div className="flex gap-4 text-sm text-green-300 mt-2">
+        <div className="flex gap-4 text-sm text-muted mt-2">
           {callSequence.map((record, i) => (
-            <span key={i}>
+            <span key={i} className={record.bid > 0 ? "text-gold" : ""}>
               {record.bid === 0 ? "不叫" : `${record.bid} 分`}
             </span>
           ))}

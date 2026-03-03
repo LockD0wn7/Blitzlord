@@ -15,11 +15,6 @@ function roleLabel(role: PlayerRole | null): string | null {
   return null;
 }
 
-function roleColor(role: PlayerRole | null): string {
-  if (role === PlayerRole.Landlord) return "text-yellow-400";
-  return "text-blue-300";
-}
-
 export default function OpponentArea({
   playerName,
   cardCount,
@@ -38,33 +33,37 @@ export default function OpponentArea({
     >
       {/* 玩家信息 */}
       <div
-        className={`rounded-xl px-4 py-3 text-center min-w-28 ${
+        className={`rounded-xl px-4 py-3 text-center min-w-28 backdrop-blur-md transition-all duration-300 ${
           isCurrentTurn
-            ? "bg-yellow-500/20 border-2 border-yellow-400"
-            : "bg-green-700/60 border border-green-600/50"
+            ? "bg-gold/10 border-2 border-gold/50 shadow-[0_0_20px_rgba(201,165,78,0.15)]"
+            : "bg-surface/50 border border-surface-border/40"
         }`}
       >
         <div className="flex items-center justify-center gap-2 mb-1">
           <span
             className={`w-2 h-2 rounded-full ${
-              isOnline ? "bg-green-400" : "bg-red-400"
+              isOnline ? "bg-jade" : "bg-crimson"
             }`}
           />
-          <span className="text-white font-medium text-sm truncate max-w-20">
+          <span className="text-warm font-medium text-sm truncate max-w-20">
             {playerName}
           </span>
         </div>
         {label && (
-          <div className={`text-xs font-bold ${roleColor(role)}`}>
+          <div
+            className={`text-xs font-bold ${
+              role === PlayerRole.Landlord ? "text-gold" : "text-jade"
+            }`}
+          >
             {label}
           </div>
         )}
       </div>
 
       {/* 牌数 */}
-      <div className="flex items-center gap-1">
-        <div className="w-6 h-8 bg-blue-800 rounded border border-blue-600 shadow-sm" />
-        <span className="text-white font-bold text-lg">{cardCount}</span>
+      <div className="flex items-center gap-1.5">
+        <div className="w-6 h-8 bg-gradient-to-br from-card-back to-card-back-dim rounded border border-card-back-border/60 shadow-sm" />
+        <span className="text-warm font-bold text-lg">{cardCount}</span>
       </div>
     </div>
   );

@@ -1,1 +1,157 @@
 @import "tailwindcss";
+
+/* ==============================
+   Blitzlord — Imperial Night Theme
+   ============================== */
+
+@theme {
+  /* Base */
+  --color-base: #090d19;
+  --color-base-light: #0f1628;
+
+  /* Surface */
+  --color-surface: #172040;
+  --color-surface-light: #1e2a50;
+  --color-surface-border: #2a3a66;
+
+  /* Gold */
+  --color-gold: #c9a54e;
+  --color-gold-light: #e8c973;
+  --color-gold-dark: #a08030;
+
+  /* Crimson */
+  --color-crimson: #d64553;
+  --color-crimson-dark: #b83240;
+
+  /* Jade */
+  --color-jade: #3a9a78;
+  --color-jade-dark: #2d7a5e;
+
+  /* Text */
+  --color-warm: #f0e6d3;
+  --color-warm-muted: #bfb49e;
+  --color-muted: #6b7b95;
+
+  /* Card face */
+  --color-card: #faf6ee;
+  --color-card-dim: #f0eade;
+  --color-card-border: #d4cdb8;
+  --color-card-red: #c23040;
+  --color-card-black: #1a1e30;
+
+  /* Card back */
+  --color-card-back: #1a2860;
+  --color-card-back-dim: #0f1840;
+  --color-card-back-border: #2a3870;
+
+  /* Typography */
+  --font-display: 'Cinzel', serif;
+  --font-cn: 'Noto Serif SC', serif;
+
+  /* Animations */
+  --animate-slide-up: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-down: slide-down 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-glow-pulse: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes slide-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes slide-down {
+  from { transform: translateY(-24px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 16px color-mix(in srgb, var(--color-gold) 15%, transparent); }
+  50%      { box-shadow: 0 0 32px color-mix(in srgb, var(--color-gold) 40%, transparent); }
+}
+
+/* ==============================
+   Global
+   ============================== */
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-warm);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==============================
+   Component Classes
+   ============================== */
+
+/* Gold gradient CTA */
+.btn-gold {
+  background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-light) 50%, var(--color-gold) 100%);
+  color: var(--color-base);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: all 0.2s ease;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.btn-gold:hover:not(:disabled) {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-gold), white 8%) 0%,
+    color-mix(in srgb, var(--color-gold-light), white 8%) 50%,
+    color-mix(in srgb, var(--color-gold), white 8%) 100%
+  );
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-gold) 35%, transparent);
+}
+.btn-gold:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn-gold:disabled {
+  background: var(--color-surface-light);
+  color: var(--color-muted);
+  box-shadow: none;
+  cursor: not-allowed;
+  text-shadow: none;
+}
+
+/* Ghost outline button */
+.btn-ghost {
+  background: transparent;
+  color: var(--color-warm-muted);
+  border: 1px solid color-mix(in srgb, var(--color-warm-muted) 25%, transparent);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warm-muted) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-warm-muted) 45%, transparent);
+  color: var(--color-warm);
+}
+.btn-ghost:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Danger / leave button */
+.btn-danger {
+  background: color-mix(in srgb, var(--color-crimson-dark) 55%, transparent);
+  color: var(--color-warm);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--color-crimson) 70%, transparent);
+}
+
+/* Atmospheric game-table background */
+.game-table-bg {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(25, 40, 72, 0.5) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(18, 28, 55, 0.3) 0%, transparent 35%),
+    linear-gradient(180deg, var(--color-base) 0%, #0c1222 50%, var(--color-base) 100%);
+}

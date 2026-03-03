@@ -39,14 +39,14 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
       <button
         onClick={handlePass}
         disabled={!isMyTurn || !canPass}
-        className="px-6 py-2 rounded-lg font-bold transition-colors bg-gray-600 text-white hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+        className="btn-ghost px-6 py-2 rounded-lg font-bold"
       >
         不出
       </button>
       <button
         onClick={handlePlay}
         disabled={!isMyTurn || selectedCards.length === 0}
-        className="px-8 py-2 rounded-lg font-bold transition-colors bg-yellow-500 text-green-900 hover:bg-yellow-400 disabled:bg-green-700 disabled:text-green-500 disabled:cursor-not-allowed"
+        className="btn-gold px-8 py-2 rounded-lg"
       >
         出牌
       </button>

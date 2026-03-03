@@ -15,9 +15,9 @@ export default function PlayedCards({
   if (lastPassPlayerId) {
     const name = playerNames[lastPassPlayerId] || "玩家";
     return (
-      <div className="flex flex-col items-center gap-2">
-        <span className="text-green-300 text-sm">{name}</span>
-        <span className="text-white text-xl font-bold">不出</span>
+      <div className="flex flex-col items-center gap-2 animate-fade-in">
+        <span className="text-muted text-sm">{name}</span>
+        <span className="text-warm-muted text-xl font-cn font-bold">不出</span>
       </div>
     );
   }
@@ -25,7 +25,7 @@ export default function PlayedCards({
   if (!lastPlay) {
     return (
       <div className="flex items-center justify-center h-24">
-        <span className="text-green-500 text-sm">等待出牌...</span>
+        <span className="text-muted text-sm">等待出牌...</span>
       </div>
     );
   }
@@ -33,8 +33,8 @@ export default function PlayedCards({
   const name = playerNames[lastPlay.playerId] || "玩家";
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-green-300 text-sm">{name}</span>
+    <div className="flex flex-col items-center gap-2 animate-fade-in">
+      <span className="text-muted text-sm">{name}</span>
       <div className="flex items-end flex-wrap justify-center gap-0">
         {lastPlay.play.cards.map((card, index) => (
           <div

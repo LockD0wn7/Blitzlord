@@ -9,10 +9,10 @@ interface CardComponentProps {
 }
 
 function getSuitColor(suit: Suit | null, rank: Rank): string {
-  if (rank === Rank.RedJoker) return "text-red-600";
-  if (rank === Rank.BlackJoker) return "text-gray-800";
-  if (suit === Suit.Heart || suit === Suit.Diamond) return "text-red-600";
-  return "text-gray-800";
+  if (rank === Rank.RedJoker) return "text-card-red";
+  if (rank === Rank.BlackJoker) return "text-card-black";
+  if (suit === Suit.Heart || suit === Suit.Diamond) return "text-card-red";
+  return "text-card-black";
 }
 
 export default function CardComponent({
@@ -31,12 +31,20 @@ export default function CardComponent({
       onClick={onClick}
       className={`
         relative inline-flex flex-col items-center justify-start
-        bg-white rounded-lg shadow-md border border-gray-200
-        select-none transition-transform duration-100
+        bg-gradient-to-br from-card to-card-dim
+        rounded-lg border border-card-border/60
+        select-none transition-all duration-200 ease-out
         ${small ? "w-10 h-14 text-xs" : "w-14 h-20 text-sm"}
-        ${selected ? "-translate-y-3" : ""}
-        ${onClick ? "cursor-pointer hover:shadow-lg hover:-translate-y-1" : ""}
-        ${selected && onClick ? "ring-2 ring-yellow-400 -translate-y-3" : ""}
+        ${
+          selected
+            ? "-translate-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.25)] ring-2 ring-gold/80"
+            : "shadow-[0_2px_6px_rgba(0,0,0,0.15),_0_6px_16px_rgba(0,0,0,0.08)]"
+        }
+        ${
+          onClick
+            ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_4px_12px_rgba(0,0,0,0.2),_0_10px_24px_rgba(0,0,0,0.12)]"
+            : ""
+        }
       `}
     >
       {isJoker ? (
@@ -49,25 +57,25 @@ export default function CardComponent({
         <>
           <div
             className={`self-start ${color} font-bold ${
-              small ? "ml-0.5 mt-0.5" : "ml-1 mt-1"
+              small ? "ml-0.5 mt-0.5" : "ml-1.5 mt-1"
             }`}
           >
-            <div className={small ? "text-xs leading-tight" : "text-sm leading-tight"}>
+            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
               {rankName}
             </div>
-            <div className={small ? "text-xs leading-tight" : "text-sm leading-tight"}>
+            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
               {suitSymbol}
             </div>
           </div>
           <div
             className={`absolute bottom-0 right-0 ${color} font-bold rotate-180 ${
-              small ? "mr-0.5 mb-0.5" : "mr-1 mb-1"
+              small ? "mr-0.5 mb-0.5" : "mr-1.5 mb-1"
             }`}
           >
-            <div className={small ? "text-xs leading-tight" : "text-sm leading-tight"}>
+            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
               {rankName}
             </div>
-            <div className={small ? "text-xs leading-tight" : "text-sm leading-tight"}>
+            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
               {suitSymbol}
             </div>
           </div>

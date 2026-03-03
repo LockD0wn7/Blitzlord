@@ -100,23 +100,26 @@ export default function Lobby() {
   );
 
   return (
-    <div className="min-h-screen bg-green-900">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-base relative">
+      {/* 顶部光效 */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,_rgba(25,38,70,0.4)_0%,_transparent_60%)] pointer-events-none" />
+
+      <div className="relative z-10 max-w-2xl mx-auto px-4 py-8">
         {/* 头部 */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 animate-fade-in">
           <div>
-            <h1 className="text-2xl font-bold text-white">游戏大厅</h1>
-            <p className="text-green-400 text-sm mt-1">
-              欢迎, {playerName || "玩家"}
+            <h1 className="font-cn text-2xl font-bold text-warm">游戏大厅</h1>
+            <p className="text-muted text-sm mt-1">
+              欢迎, <span className="text-warm-muted">{playerName || "玩家"}</span>
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <span
-              className={`inline-block w-2 h-2 rounded-full ${
-                connected ? "bg-green-400" : "bg-red-400"
+              className={`w-2 h-2 rounded-full transition-colors ${
+                connected ? "bg-jade animate-pulse" : "bg-crimson"
               }`}
             />
-            <span className="text-green-300 text-sm">
+            <span className="text-muted text-sm">
               {connected ? "已连接" : "未连接"}
             </span>
           </div>
@@ -129,7 +132,7 @@ export default function Lobby() {
 
         {/* 房间列表 */}
         <div>
-          <h2 className="text-lg font-semibold text-green-200 mb-4">
+          <h2 className="font-cn text-lg font-semibold text-warm-muted mb-4">
             房间列表
           </h2>
           <RoomList rooms={rooms} onJoin={handleJoin} />

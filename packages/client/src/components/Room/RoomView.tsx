@@ -105,83 +105,84 @@ export default function RoomView() {
   const isReady = me?.isReady || false;
 
   return (
-    <div className="min-h-screen bg-green-900 flex items-center justify-center">
-      <div className="bg-green-800 rounded-2xl shadow-2xl p-8 w-full max-w-lg">
-        {/* 房间标题 */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-white">
-            {currentRoom?.roomName || "房间"}
-          </h1>
-          <p className="text-green-400 text-sm mt-1">
-            房间号: {roomId}
-          </p>
-        </div>
+    <div className="min-h-screen bg-base flex items-center justify-center relative overflow-hidden">
+      {/* 氛围光效 */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,_rgba(25,38,70,0.5)_0%,_transparent_70%)] pointer-events-none" />
 
-        {/* 玩家列表 */}
-        <div className="space-y-3 mb-8">
-          {[0, 1, 2].map((seatIndex) => {
-            const player = currentRoom?.players.find(
-              (p) => p.seatIndex === seatIndex
-            );
-            return (
-              <div
-                key={seatIndex}
-                className={`flex items-center justify-between rounded-lg px-4 py-3 border ${
-                  player
-                    ? "bg-green-700/50 border-green-600/50"
-                    : "bg-green-700/20 border-green-700/30 border-dashed"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-green-400 text-sm w-8">
-                    座位{seatIndex + 1}
-                  </span>
-                  {player ? (
-                    <span className="text-white font-medium">
-                      {player.playerName}
-                      {player.playerId === myPlayerId && (
-                        <span className="text-yellow-400 ml-2 text-sm">
-                          (我)
-                        </span>
-                      )}
+      <div className="relative z-10 w-full max-w-lg px-6 animate-slide-up">
+        <div className="bg-surface/80 backdrop-blur-xl rounded-2xl border border-surface-border/60 shadow-[0_8px_40px_rgba(0,0,0,0.4)] p-8">
+          {/* 房间标题 */}
+          <div className="text-center mb-6">
+            <h1 className="font-cn text-2xl font-bold text-warm">
+              {currentRoom?.roomName || "房间"}
+            </h1>
+            <p className="text-muted text-sm mt-1">
+              房间号: {roomId}
+            </p>
+          </div>
+
+          {/* 玩家座位 */}
+          <div className="space-y-3 mb-8">
+            {[0, 1, 2].map((seatIndex) => {
+              const player = currentRoom?.players.find(
+                (p) => p.seatIndex === seatIndex
+              );
+              return (
+                <div
+                  key={seatIndex}
+                  className={`flex items-center justify-between rounded-xl px-4 py-3.5 border transition-all duration-200 ${
+                    player
+                      ? "bg-surface-light/50 border-surface-border/50"
+                      : "bg-base-light/20 border-surface-border/20 border-dashed"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted text-sm w-10">
+                      座位{seatIndex + 1}
                     </span>
-                  ) : (
-                    <span className="text-green-500">等待加入...</span>
+                    {player ? (
+                      <span className="text-warm font-medium">
+                        {player.playerName}
+                        {player.playerId === myPlayerId && (
+                          <span className="text-gold ml-2 text-sm">
+                            (我)
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-muted/50">等待加入...</span>
+                    )}
+                  </div>
+                  {player && (
+                    <span
+                      className={`text-sm font-medium ${
+                        player.isReady ? "text-jade" : "text-muted"
+                      }`}
+                    >
+                      {player.isReady ? "已准备" : "未准备"}
+                    </span>
                   )}
                 </div>
-                {player && (
-                  <span
-                    className={`text-sm font-medium ${
-                      player.isReady ? "text-green-300" : "text-gray-400"
-                    }`}
-                  >
-                    {player.isReady ? "已准备" : "未准备"}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        {/* 操作按钮 */}
-        <div className="flex gap-4">
-          <button
-            onClick={handleLeave}
-            className="flex-1 py-3 rounded-lg font-medium transition-colors bg-red-600/80 text-white hover:bg-red-500"
-          >
-            离开房间
-          </button>
-          <button
-            onClick={handleReady}
-            disabled={isReady}
-            className={`flex-1 py-3 rounded-lg font-bold transition-colors ${
-              isReady
-                ? "bg-green-600 text-green-300 cursor-not-allowed"
-                : "bg-yellow-500 text-green-900 hover:bg-yellow-400"
-            }`}
-          >
-            {isReady ? "已准备" : "准备"}
-          </button>
+          {/* 操作按钮 */}
+          <div className="flex gap-4">
+            <button
+              onClick={handleLeave}
+              className="btn-danger flex-1 py-3 rounded-xl"
+            >
+              离开房间
+            </button>
+            <button
+              onClick={handleReady}
+              disabled={isReady}
+              className="btn-gold flex-1 py-3 rounded-xl"
+            >
+              {isReady ? "已准备" : "准备"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

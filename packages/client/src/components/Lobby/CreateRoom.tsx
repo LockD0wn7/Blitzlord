@@ -26,7 +26,7 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full py-3 rounded-lg font-bold text-lg transition-colors bg-yellow-500 text-green-900 hover:bg-yellow-400"
+        className="btn-gold w-full py-3 rounded-xl text-lg"
       >
         创建房间
       </button>
@@ -34,7 +34,7 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
   }
 
   return (
-    <div className="bg-green-700/50 rounded-lg p-4 border border-green-600/50">
+    <div className="bg-surface/60 backdrop-blur-md rounded-xl p-4 border border-surface-border/50">
       <div className="flex gap-3">
         <input
           type="text"
@@ -44,12 +44,12 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
           placeholder="输入房间名称"
           maxLength={20}
           autoFocus
-          className="flex-1 px-4 py-2 rounded-lg bg-green-700 text-white placeholder-green-400 border border-green-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="flex-1 px-4 py-2.5 rounded-xl bg-base-light/80 text-warm placeholder-muted/50 border border-surface-border/60 focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold/40 transition-all duration-200"
         />
         <button
           onClick={handleCreate}
           disabled={!roomName.trim()}
-          className="px-5 py-2 rounded-lg font-medium transition-colors bg-yellow-500 text-green-900 hover:bg-yellow-400 disabled:bg-green-600 disabled:text-green-400 disabled:cursor-not-allowed"
+          className="btn-gold px-5 py-2.5 rounded-xl"
         >
           创建
         </button>
@@ -58,7 +58,7 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
             setIsOpen(false);
             setRoomName("");
           }}
-          className="px-4 py-2 rounded-lg font-medium transition-colors bg-green-600 text-green-200 hover:bg-green-500"
+          className="btn-ghost px-4 py-2.5 rounded-xl"
         >
           取消
         </button>

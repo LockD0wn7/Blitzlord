@@ -14,7 +14,7 @@ export default function PlayerHand() {
         return (
           <div
             key={`${card.rank}-${card.suit}-${index}`}
-            className="-ml-2 first:ml-0"
+            className="-ml-2 first:ml-0 transition-all duration-150"
           >
             <CardComponent
               card={card}

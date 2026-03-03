@@ -18,7 +18,7 @@ const games = new Map<string, GameManager>();
 
 io.on("connection", createHandlers({ io, roomManager, sessionManager, games }));
 
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT || "3001", 10);
 httpServer.listen(PORT, () => {
   console.log(`Blitzlord server listening on port ${PORT}`);
 });

@@ -8,6 +8,8 @@ import {
   PlayerRole,
   type PlayerState,
   type ScoreDetail,
+  type TrackerHistoryEntry,
+  buildCardTrackerSnapshot,
   createDeck,
   shuffleDeck,
   dealCards,
@@ -33,6 +35,9 @@ export interface GameEndResult {
 export class GameManager {
   private state: GameState;
   private players: GamePlayer[];
+  private trackerHistory: TrackerHistoryEntry[] = [];
+  private trackerSequence = 0;
+  private trackerRound = 1;
 
   /** 叫分轮转顺序中，当前应该叫分的玩家索引 */
   private callerIndex: number;
@@ -122,6 +127,27 @@ export class GameManager {
     return this.getPlayerState(playerId)?.hand.length ?? 0;
   }
 
+  private resetTracker(): void {
+    this.trackerHistory = [];
+    this.trackerSequence = 0;
+    this.trackerRound = 1;
+  }
+
+  private pushTrackerEntry(
+    playerId: string,
+    action: TrackerHistoryEntry["action"],
+    cards: Card[],
+  ): void {
+    this.trackerSequence += 1;
+    this.trackerHistory.push({
+      sequence: this.trackerSequence,
+      round: this.trackerRound,
+      playerId,
+      action,
+      cards: cards.map((card) => ({ ...card })),
+    });
+  }
+
   // ===================== 发牌阶段 =====================
 
   private deal(): void {
@@ -142,6 +168,7 @@ export class GameManager {
     this.state.bombCount = 0;
     this.state.rocketUsed = false;
     this.state.callSequence = [];
+    this.resetTracker();
 
     this.state.phase = GamePhase.Calling;
   }
@@ -313,6 +340,7 @@ export class GameManager {
     }
 
     playerState.playCount++;
+    this.pushTrackerEntry(playerId, "play", play.cards);
 
     // 记录炸弹/火箭
     if (play.type === CardType.Bomb) {
@@ -367,12 +395,14 @@ export class GameManager {
     }
 
     this.state.consecutivePasses++;
+    this.pushTrackerEntry(playerId, "pass", []);
 
     // 连续 2 个人 pass，控牌权回到上一个出牌者
     if (this.state.consecutivePasses >= 2) {
       this.state.currentTurn = this.state.lastPlay.playerId;
       this.state.lastPlay = null;
       this.state.consecutivePasses = 0;
+      this.trackerRound += 1;
       return { ok: true, nextTurn: this.state.currentTurn, resetRound: true };
     }
 
@@ -512,6 +542,10 @@ export class GameManager {
         isOnline: p.isOnline,
       })),
       callSequence: [...this.state.callSequence],
+      tracker: buildCardTrackerSnapshot({
+        myHand: me ? [...me.hand] : [],
+        history: this.trackerHistory,
+      }),
     };
   }
 }

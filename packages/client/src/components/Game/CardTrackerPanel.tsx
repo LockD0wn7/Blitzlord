@@ -1,9 +1,9 @@
 import type { MouseEvent } from "react";
+import { Rank } from "@blitzlord/shared";
 import type {
   TrackerHistoryEntry,
   TrackerRankStat,
 } from "@blitzlord/shared";
-import { RANK_NAMES, Rank } from "@blitzlord/shared";
 import CardComponent from "./CardComponent";
 
 interface CardTrackerPanelProps {
@@ -20,6 +20,24 @@ const KEY_RANKS = new Set<Rank>([
   Rank.Two,
   Rank.Ace,
 ]);
+
+const RANK_LABELS: Record<Rank, string> = {
+  [Rank.Three]: "3",
+  [Rank.Four]: "4",
+  [Rank.Five]: "5",
+  [Rank.Six]: "6",
+  [Rank.Seven]: "7",
+  [Rank.Eight]: "8",
+  [Rank.Nine]: "9",
+  [Rank.Ten]: "10",
+  [Rank.Jack]: "J",
+  [Rank.Queen]: "Q",
+  [Rank.King]: "K",
+  [Rank.Ace]: "A",
+  [Rank.Two]: "2",
+  [Rank.BlackJoker]: "小王",
+  [Rank.RedJoker]: "大王",
+};
 
 function formatAction(entry: TrackerHistoryEntry): string {
   return entry.action === "pass" ? "不出" : "出牌";
@@ -94,7 +112,7 @@ export default function CardTrackerPanel({
                 }`}
               >
                 <div className="tracker-rank-card__label">
-                  {RANK_NAMES[entry.rank]}
+                  {RANK_LABELS[entry.rank]}
                 </div>
                 <div className="tracker-rank-card__pips" aria-hidden="true">
                   {Array.from({ length: entry.totalCopies }, (_, index) => (

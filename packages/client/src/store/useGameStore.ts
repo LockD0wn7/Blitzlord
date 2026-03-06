@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   Card,
+  CardTrackerSnapshot,
   CardPlay,
   GameSnapshot,
   PlayerRole,
@@ -28,6 +29,8 @@ interface GameState {
   rocketUsed: boolean;
   players: GamePlayer[];
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
+  tracker: CardTrackerSnapshot;
+  isTrackerOpen: boolean;
   selectedCards: Card[];
   gameResult: {
     winnerId: string;
@@ -49,6 +52,7 @@ interface GameState {
   setRocketUsed: (used: boolean) => void;
   setPlayers: (players: GamePlayer[]) => void;
   addCallRecord: (record: { playerId: string; bid: 0 | 1 | 2 | 3 }) => void;
+  toggleTrackerPanel: () => void;
   toggleCardSelection: (card: Card) => void;
   clearSelection: () => void;
   removeCardsFromHand: (cards: Card[]) => void;
@@ -71,6 +75,11 @@ const initialState = {
   rocketUsed: false,
   players: [] as GamePlayer[],
   callSequence: [] as { playerId: string; bid: 0 | 1 | 2 | 3 }[],
+  tracker: {
+    history: [],
+    remainingByRank: [],
+  } as CardTrackerSnapshot,
+  isTrackerOpen: false,
   selectedCards: [] as Card[],
   gameResult: null as GameState["gameResult"],
   errorMessage: null as string | null,
@@ -92,6 +101,7 @@ export const useGameStore = create<GameState>((set) => ({
       rocketUsed: snapshot.rocketUsed,
       players: snapshot.players,
       callSequence: snapshot.callSequence,
+      tracker: snapshot.tracker,
       selectedCards: [],
       gameResult: null,
       errorMessage: null,
@@ -111,6 +121,11 @@ export const useGameStore = create<GameState>((set) => ({
   addCallRecord: (record) =>
     set((state) => ({
       callSequence: [...state.callSequence, record],
+    })),
+
+  toggleTrackerPanel: () =>
+    set((state) => ({
+      isTrackerOpen: !state.isTrackerOpen,
     })),
 
   toggleCardSelection: (card) =>

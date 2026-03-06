@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGameStore } from "../../store/useGameStore";
 import { useRoomStore } from "../../store/useRoomStore";
@@ -9,6 +9,8 @@ import {
   PlayerRole,
   CardType,
   RoomStatus,
+  buildCardTrackerSnapshot,
+  cardEquals,
   sortCards,
 } from "@blitzlord/shared";
 import type {
@@ -24,11 +26,42 @@ import ActionBar from "./ActionBar";
 import CallLandlord from "./CallLandlord";
 import ScoreBoard from "./ScoreBoard";
 import CardComponent from "./CardComponent";
+import CardTrackerPanel from "./CardTrackerPanel";
+
+function getNextTrackerSequence(snapshot: GameSnapshot["tracker"]): number {
+  return (snapshot.history.at(-1)?.sequence ?? 0) + 1;
+}
+
+function getCurrentTrackerRound(snapshot: GameSnapshot["tracker"]): number {
+  return snapshot.history.at(-1)?.round ?? 1;
+}
+
+function getNextPlayTrackerRound(
+  snapshot: GameSnapshot["tracker"],
+  lastPlay: GameSnapshot["lastPlay"],
+): number {
+  if (snapshot.history.length === 0) {
+    return 1;
+  }
+
+  if (lastPlay === null) {
+    return getCurrentTrackerRound(snapshot) + 1;
+  }
+
+  return getCurrentTrackerRound(snapshot);
+}
+
+function removePlayedCardsFromHand(hand: Card[], cards: Card[]): Card[] {
+  return hand.filter(
+    (handCard) => !cards.some((card) => cardEquals(card, handCard)),
+  );
+}
 
 export default function GameBoard() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const token = useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
+  const token =
+    useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
   const [lastPassPlayerId, setLastPassPlayerId] = useState<string | null>(null);
   const setCurrentRoom = useRoomStore((s) => s.setCurrentRoom);
 
@@ -41,20 +74,20 @@ export default function GameBoard() {
   const bombCount = useGameStore((s) => s.bombCount);
   const rocketUsed = useGameStore((s) => s.rocketUsed);
   const players = useGameStore((s) => s.players);
+  const tracker = useGameStore((s) => s.tracker);
+  const isTrackerOpen = useGameStore((s) => s.isTrackerOpen);
   const gameResult = useGameStore((s) => s.gameResult);
   const errorMessage = useGameStore((s) => s.errorMessage);
   const setErrorMessage = useGameStore((s) => s.setErrorMessage);
+  const toggleTrackerPanel = useGameStore((s) => s.toggleTrackerPanel);
 
-  // 确保 socket 连接
   useEffect(() => {
     connectSocket();
   }, []);
 
-  // 请求同步（重连恢复）
   useEffect(() => {
     const socket = getSocket();
 
-    // 如果进入游戏页面没有 phase，说明需要同步
     if (!phase && roomId) {
       socket.emit("room:requestSync", (res) => {
         if (!res.ok || !res.room) {
@@ -73,8 +106,6 @@ export default function GameBoard() {
     }
   }, [phase, roomId, navigate, setCurrentRoom]);
 
-  // 监听所有 game:* 事件
-  // 使用 useGameStore.getState() 避免闭包捕获过时的状态
   useEffect(() => {
     const socket = getSocket();
 
@@ -89,8 +120,10 @@ export default function GameBoard() {
       players: { playerId: string; playerName: string; seatIndex: number }[];
     }) => {
       const store = useGameStore.getState();
+      const sortedHand = sortCards(data.hand);
+
       store.resetGame();
-      store.setHand(sortCards(data.hand));
+      store.setHand(sortedHand);
       store.setPhase(GamePhase.Calling);
       store.setCurrentTurn(data.firstCaller);
       store.setPlayers(
@@ -100,7 +133,13 @@ export default function GameBoard() {
           role: null,
           cardCount: 17,
           isOnline: true,
-        }))
+        })),
+      );
+      store.syncTracker(
+        buildCardTrackerSnapshot({
+          myHand: sortedHand,
+          history: [],
+        }),
       );
       setLastPassPlayerId(null);
     };
@@ -121,32 +160,39 @@ export default function GameBoard() {
       baseBid: 1 | 2 | 3;
     }) => {
       const store = useGameStore.getState();
+      const nextHand =
+        data.landlordId === token
+          ? sortCards([...store.myHand, ...data.bottomCards])
+          : store.myHand;
+
       store.setBottomCards(data.bottomCards);
       store.setBaseBid(data.baseBid);
       store.setPhase(GamePhase.Playing);
-
-      // 更新角色
-      const currentPlayers = store.players;
       store.setPlayers(
-        currentPlayers.map((p) => ({
-          ...p,
+        store.players.map((player) => ({
+          ...player,
           role:
-            p.playerId === data.landlordId
+            player.playerId === data.landlordId
               ? PlayerRole.Landlord
               : PlayerRole.Peasant,
           cardCount:
-            p.playerId === data.landlordId ? 20 : p.cardCount,
-        }))
+            player.playerId === data.landlordId ? 20 : player.cardCount,
+        })),
       );
 
-      // 如果我是地主，把底牌加入手牌
       if (data.landlordId === token) {
         store.setMyRole(PlayerRole.Landlord);
-        store.setHand(sortCards([...store.myHand, ...data.bottomCards]));
+        store.setHand(nextHand);
       } else {
         store.setMyRole(PlayerRole.Peasant);
       }
 
+      store.syncTracker(
+        buildCardTrackerSnapshot({
+          myHand: nextHand,
+          history: store.tracker.history,
+        }),
+      );
       store.setCurrentTurn(data.landlordId);
     };
 
@@ -160,27 +206,49 @@ export default function GameBoard() {
       remainingCards: number;
     }) => {
       const store = useGameStore.getState();
+      const nextHand =
+        data.playerId === token
+          ? removePlayedCardsFromHand(store.myHand, data.play.cards)
+          : store.myHand;
+      const nextEntry = {
+        sequence: getNextTrackerSequence(store.tracker),
+        round: getNextPlayTrackerRound(store.tracker, store.lastPlay),
+        playerId: data.playerId,
+        action: "play" as const,
+        cards: data.play.cards.map((card) => ({ ...card })),
+      };
+      const nextTracker = buildCardTrackerSnapshot({
+        myHand: nextHand,
+        history: [...store.tracker.history, nextEntry],
+      });
+
       store.setLastPlay({ playerId: data.playerId, play: data.play });
       setLastPassPlayerId(null);
       store.updatePlayerCardCount(data.playerId, data.remainingCards);
+      store.appendTrackerPlay(nextEntry, nextTracker.remainingByRank);
 
-      // 更新炸弹/火箭计数
       if (data.play.type === CardType.Bomb) {
         store.setBombCount(store.bombCount + 1);
       }
       if (data.play.type === CardType.Rocket) {
         store.setRocketUsed(true);
       }
-
-      // 自己出的牌：通过广播统一从手牌移除（单一数据源）
       if (data.playerId === token) {
         store.removeCardsFromHand(data.play.cards);
       }
-
     };
 
     const onPassed = (data: { playerId: string; resetRound: boolean }) => {
       const store = useGameStore.getState();
+
+      store.appendTrackerPass({
+        sequence: getNextTrackerSequence(store.tracker),
+        round: getCurrentTrackerRound(store.tracker),
+        playerId: data.playerId,
+        action: "pass",
+        cards: [],
+      });
+
       if (data.resetRound) {
         store.setLastPlay(null);
         setLastPassPlayerId(null);
@@ -239,7 +307,6 @@ export default function GameBoard() {
     };
   }, [token, roomId, navigate, setCurrentRoom]);
 
-  // 自动清除错误提示
   useEffect(() => {
     if (errorMessage) {
       const timer = setTimeout(() => setErrorMessage(null), 3000);
@@ -247,30 +314,32 @@ export default function GameBoard() {
     }
   }, [errorMessage, setErrorMessage]);
 
-  // 计算对手位置
   const opponents = useMemo(() => {
-    const myIndex = players.findIndex((p) => p.playerId === token);
-    if (myIndex === -1) return { left: null, right: null };
-    const leftIndex = (myIndex + 1) % 3;
-    const rightIndex = (myIndex + 2) % 3;
+    const myIndex = players.findIndex((player) => player.playerId === token);
+
+    if (myIndex === -1) {
+      return { left: null, right: null };
+    }
+
     return {
-      left: players[leftIndex] || null,
-      right: players[rightIndex] || null,
+      left: players[(myIndex + 1) % 3] ?? null,
+      right: players[(myIndex + 2) % 3] ?? null,
     };
   }, [players, token]);
 
-  // 构建 playerNames 映射
   const playerNames = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const p of players) {
-      map[p.playerId] = p.playerName;
+    for (const player of players) {
+      map[player.playerId] = player.playerName;
     }
     return map;
   }, [players]);
 
+  const trackerHistory = useMemo(
+    () => [...tracker.history].reverse(),
+    [tracker.history],
+  );
   const isMyTurn = currentTurn === token;
-
-  // 判断是否可以 pass（有上家牌且不是自己控牌时可以不出）
   const canPass =
     phase === GamePhase.Playing &&
     isMyTurn &&
@@ -278,49 +347,62 @@ export default function GameBoard() {
     lastPlay.playerId !== token;
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden game-table-bg">
-      {/* 暗角遮罩 */}
+    <div className="game-table-bg relative flex min-h-screen flex-col overflow-hidden">
       <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(ellipse_at_50%_50%,_transparent_30%,_rgba(9,13,25,0.6)_100%)]" />
 
-      {/* 错误提示 */}
       {errorMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-crimson/90 backdrop-blur-md text-warm px-6 py-2.5 rounded-xl shadow-lg animate-slide-down text-sm">
+        <div className="animate-slide-down absolute top-4 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-crimson/90 px-6 py-2.5 text-sm text-warm shadow-lg backdrop-blur-md">
           {errorMessage}
         </div>
       )}
 
-      {/* 游戏信息栏 */}
-      <div className="relative z-10 flex items-center justify-between px-5 py-2.5 bg-surface/50 backdrop-blur-md border-b border-surface-border/30">
-        <div className="text-muted text-sm">
-          房间: {roomId}
-        </div>
+      <div className="relative z-10 flex items-center justify-between border-b border-surface-border/30 bg-surface/50 px-5 py-2.5 backdrop-blur-md">
+        <div className="text-sm text-muted">房间: {roomId}</div>
+
         <div className="flex items-center gap-4 text-sm">
           {baseBid > 0 && (
-            <span className="text-gold font-medium">叫分: {baseBid}</span>
+            <span className="font-medium text-gold">叫分: {baseBid}</span>
           )}
           {bombCount > 0 && (
-            <span className="text-orange-400 font-medium">炸弹: {bombCount}</span>
+            <span className="font-medium text-orange-400">炸弹: {bombCount}</span>
           )}
-          {rocketUsed && <span className="text-crimson font-bold">火箭!</span>}
+          {rocketUsed && <span className="font-bold text-crimson">火箭!</span>}
         </div>
-        <div
-          className={`text-sm font-cn font-semibold ${
-            myRole === PlayerRole.Landlord
-              ? "text-gold"
+
+        <div className="flex items-center gap-3">
+          <div
+            className={`text-sm font-cn font-semibold ${
+              myRole === PlayerRole.Landlord
+                ? "text-gold"
+                : myRole === PlayerRole.Peasant
+                ? "text-jade"
+                : "text-muted"
+            }`}
+          >
+            {myRole === PlayerRole.Landlord
+              ? "地主"
               : myRole === PlayerRole.Peasant
-              ? "text-jade"
-              : "text-muted"
-          }`}
-        >
-          {myRole === PlayerRole.Landlord
-            ? "地主"
-            : myRole === PlayerRole.Peasant
-            ? "农民"
-            : ""}
+              ? "农民"
+              : ""}
+          </div>
+
+          {(phase === GamePhase.Playing || phase === GamePhase.Ended) && (
+            <button
+              type="button"
+              onClick={toggleTrackerPanel}
+              className="rounded-full border border-gold/25 bg-base/35 px-3 py-1.5 text-left backdrop-blur-md transition-all duration-200 hover:border-gold/55 hover:bg-gold/10 hover:shadow-[0_0_24px_rgba(201,165,78,0.15)]"
+            >
+              <span className="block font-display text-[0.58rem] uppercase tracking-[0.24em] text-gold-light/75">
+                Ledger
+              </span>
+              <span className="block font-cn text-xs font-semibold text-gold">
+                记牌器
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 对手区域 */}
       <div className="relative z-10 flex justify-between px-8 pt-4 pb-2">
         {opponents.left && (
           <OpponentArea
@@ -332,6 +414,7 @@ export default function GameBoard() {
             position="left"
           />
         )}
+
         {opponents.right && (
           <OpponentArea
             playerName={opponents.right.playerName}
@@ -344,10 +427,9 @@ export default function GameBoard() {
         )}
       </div>
 
-      {/* 底牌区 */}
       {bottomCards.length > 0 && (
-        <div className="relative z-10 flex justify-center items-center gap-1 py-1.5">
-          <span className="text-muted text-xs mr-2">底牌:</span>
+        <div className="relative z-10 flex items-center justify-center gap-1 py-1.5">
+          <span className="mr-2 text-xs text-muted">底牌:</span>
           {bottomCards.map((card, index) => (
             <CardComponent
               key={`bottom-${card.rank}-${card.suit}-${index}`}
@@ -358,8 +440,7 @@ export default function GameBoard() {
         </div>
       )}
 
-      {/* 中间出牌区域 */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-8">
+      <div className="relative z-10 flex flex-1 items-center justify-center px-8">
         {phase === GamePhase.Calling ? (
           <CallLandlord isMyTurn={isMyTurn} />
         ) : phase === GamePhase.Playing || phase === GamePhase.Ended ? (
@@ -369,34 +450,37 @@ export default function GameBoard() {
             playerNames={playerNames}
           />
         ) : (
-          <div className="text-muted text-lg font-cn">等待游戏开始...</div>
+          <div className="text-lg text-muted font-cn">等待游戏开始...</div>
         )}
       </div>
 
-      {/* 下方手牌 + 操作栏 */}
       <div className="relative z-10 px-4 pb-4">
-        {/* 当前轮次提示 */}
         {isMyTurn && phase === GamePhase.Playing && (
-          <div className="text-center mb-2">
-            <span className="inline-block px-5 py-1 rounded-full bg-gold/10 border border-gold/30 text-gold font-cn font-bold text-sm animate-glow-pulse">
+          <div className="mb-2 text-center">
+            <span className="animate-glow-pulse inline-block rounded-full border border-gold/30 bg-gold/10 px-5 py-1 text-sm font-bold text-gold font-cn">
               轮到你出牌
             </span>
           </div>
         )}
 
-        {/* 操作栏 */}
         {phase === GamePhase.Playing && (
           <ActionBar isMyTurn={isMyTurn} canPass={canPass} />
         )}
 
-        {/* 手牌 */}
         <div className="mt-3">
           <PlayerHand />
         </div>
       </div>
 
-      {/* 游戏结算 */}
       {phase === GamePhase.Ended && gameResult && <ScoreBoard />}
+
+      <CardTrackerPanel
+        open={isTrackerOpen}
+        onClose={toggleTrackerPanel}
+        remainingByRank={tracker.remainingByRank}
+        history={trackerHistory}
+        playerNames={playerNames}
+      />
     </div>
   );
 }

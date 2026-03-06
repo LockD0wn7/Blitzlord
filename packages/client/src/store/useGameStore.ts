@@ -52,6 +52,12 @@ interface GameState {
   setRocketUsed: (used: boolean) => void;
   setPlayers: (players: GamePlayer[]) => void;
   addCallRecord: (record: { playerId: string; bid: 0 | 1 | 2 | 3 }) => void;
+  syncTracker: (tracker: CardTrackerSnapshot) => void;
+  appendTrackerPlay: (
+    entry: CardTrackerSnapshot["history"][number],
+    remainingByRank: CardTrackerSnapshot["remainingByRank"],
+  ) => void;
+  appendTrackerPass: (entry: CardTrackerSnapshot["history"][number]) => void;
   toggleTrackerPanel: () => void;
   toggleCardSelection: (card: Card) => void;
   clearSelection: () => void;
@@ -121,6 +127,24 @@ export const useGameStore = create<GameState>((set) => ({
   addCallRecord: (record) =>
     set((state) => ({
       callSequence: [...state.callSequence, record],
+    })),
+
+  syncTracker: (tracker) => set({ tracker }),
+
+  appendTrackerPlay: (entry, remainingByRank) =>
+    set((state) => ({
+      tracker: {
+        history: [...state.tracker.history, entry],
+        remainingByRank,
+      },
+    })),
+
+  appendTrackerPass: (entry) =>
+    set((state) => ({
+      tracker: {
+        history: [...state.tracker.history, entry],
+        remainingByRank: state.tracker.remainingByRank,
+      },
     })),
 
   toggleTrackerPanel: () =>

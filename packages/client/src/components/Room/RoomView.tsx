@@ -4,7 +4,7 @@ import { useRoomStore } from "../../store/useRoomStore";
 import { useGameStore } from "../../store/useGameStore";
 import { useSocketStore } from "../../store/useSocketStore";
 import { getSocket, connectSocket } from "../../socket";
-import { GamePhase, sortCards } from "@blitzlord/shared";
+import { GamePhase, RoomStatus, sortCards } from "@blitzlord/shared";
 import type { RoomDetail } from "@blitzlord/shared";
 
 export default function RoomView() {
@@ -32,6 +32,7 @@ export default function RoomView() {
   // 监听 room:updated
   useEffect(() => {
     const socket = getSocket();
+    let disposed = false;
 
     const onRoomUpdated = (room: RoomDetail) => {
       setCurrentRoom(room);
@@ -39,26 +40,55 @@ export default function RoomView() {
 
     socket.on("room:updated", onRoomUpdated);
 
-    // 如果没有当前房间数据且有 roomId，需要通过加入来获取
-    // （直接访问 URL 的情况）
-    if (!hasJoinedRef.current && roomId) {
-      hasJoinedRef.current = true;
-      socket.emit(
-        "room:join",
-        { roomId, playerName: playerName || "玩家" },
-        (res) => {
-          if (!res.ok) {
-            // 可能已经在房间里了，请求同步
-            socket.emit("game:requestSync");
+    const requestRoomSync = () => {
+      socket.emit("room:requestSync", (res) => {
+        if (disposed) return;
+
+        if (res.ok && res.room) {
+          setCurrentRoom(res.room);
+
+          if (res.room.roomId !== roomId) {
+            navigate(`/room/${res.room.roomId}`, { replace: true });
+            return;
           }
+
+          if (res.room.status === RoomStatus.Playing) {
+            navigate(`/game/${res.room.roomId}`, { replace: true });
+          }
+          return;
         }
-      );
-    }
+
+        if (!hasJoinedRef.current && roomId) {
+          hasJoinedRef.current = true;
+          socket.emit(
+            "room:join",
+            { roomId, playerName: playerName || "玩家" },
+            (joinRes) => {
+              if (disposed) return;
+
+              if (joinRes.ok) {
+                requestRoomSync();
+                return;
+              }
+
+              setCurrentRoom(null);
+              navigate("/lobby", { replace: true });
+            }
+          );
+        } else if (!roomId) {
+          setCurrentRoom(null);
+          navigate("/lobby", { replace: true });
+        }
+      });
+    };
+
+    requestRoomSync();
 
     return () => {
+      disposed = true;
       socket.off("room:updated", onRoomUpdated);
     };
-  }, [roomId, setCurrentRoom, playerName]);
+  }, [roomId, setCurrentRoom, playerName, navigate]);
 
   // 监听 game:started
   useEffect(() => {

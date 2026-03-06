@@ -1,6 +1,16 @@
 import { CardType } from "../types/card.js";
 import type { CardPlay } from "../types/card.js";
 
+function requiresLength(type: CardType): boolean {
+  return (
+    type === CardType.Straight ||
+    type === CardType.DoubleStraight ||
+    type === CardType.TripleStraight ||
+    type === CardType.TripleStraightWithOnes ||
+    type === CardType.TripleStraightWithPairs
+  );
+}
+
 /**
  * 判断 current 是否能打过 previous。
  *
@@ -24,7 +34,8 @@ export function canBeat(current: CardPlay, previous: CardPlay): boolean {
   if (current.type !== previous.type) return false;
 
   // 有长度要求的牌型（顺子/连对/飞机系列）需长度相同
-  if (current.length !== undefined && previous.length !== undefined) {
+  if (requiresLength(current.type)) {
+    if (current.length === undefined || previous.length === undefined) return false;
     if (current.length !== previous.length) return false;
   }
 

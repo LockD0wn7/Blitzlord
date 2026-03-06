@@ -1,15 +1,22 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useGameStore } from "../../store/useGameStore";
+import { useRoomStore } from "../../store/useRoomStore";
 import { useSocketStore } from "../../store/useSocketStore";
 import { getSocket, connectSocket } from "../../socket";
 import {
   GamePhase,
   PlayerRole,
   CardType,
+  RoomStatus,
   sortCards,
 } from "@blitzlord/shared";
-import type { Card, CardPlay, GameSnapshot, ScoreDetail } from "@blitzlord/shared";
+import type {
+  Card,
+  CardPlay,
+  GameSnapshot,
+  ScoreDetail,
+} from "@blitzlord/shared";
 import PlayerHand from "./PlayerHand";
 import OpponentArea from "./OpponentArea";
 import PlayedCards from "./PlayedCards";
@@ -20,8 +27,10 @@ import CardComponent from "./CardComponent";
 
 export default function GameBoard() {
   const { roomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
   const token = useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
   const [lastPassPlayerId, setLastPassPlayerId] = useState<string | null>(null);
+  const setCurrentRoom = useRoomStore((s) => s.setCurrentRoom);
 
   const phase = useGameStore((s) => s.phase);
   const myRole = useGameStore((s) => s.myRole);
@@ -46,10 +55,23 @@ export default function GameBoard() {
     const socket = getSocket();
 
     // 如果进入游戏页面没有 phase，说明需要同步
-    if (!phase) {
-      socket.emit("game:requestSync");
+    if (!phase && roomId) {
+      socket.emit("room:requestSync", (res) => {
+        if (!res.ok || !res.room) {
+          socket.emit("game:requestSync");
+          return;
+        }
+
+        setCurrentRoom(res.room);
+        if (res.room.status !== RoomStatus.Playing) {
+          navigate(`/room/${res.room.roomId}`, { replace: true });
+          return;
+        }
+
+        socket.emit("game:requestSync");
+      });
     }
-  }, [phase]);
+  }, [phase, roomId, navigate, setCurrentRoom]);
 
   // 监听所有 game:* 事件
   // 使用 useGameStore.getState() 避免闭包捕获过时的状态
@@ -157,7 +179,14 @@ export default function GameBoard() {
 
     };
 
-    const onPassed = (data: { playerId: string }) => {
+    const onPassed = (data: { playerId: string; resetRound: boolean }) => {
+      const store = useGameStore.getState();
+      if (data.resetRound) {
+        store.setLastPlay(null);
+        setLastPassPlayerId(null);
+        return;
+      }
+
       setLastPassPlayerId(data.playerId);
     };
 
@@ -208,7 +237,7 @@ export default function GameBoard() {
       socket.off("player:reconnected", onPlayerReconnected);
       socket.off("error", onError);
     };
-  }, [token]);
+  }, [token, roomId, navigate, setCurrentRoom]);
 
   // 自动清除错误提示
   useEffect(() => {

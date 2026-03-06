@@ -29,7 +29,7 @@ export interface GameState {
   lastPlay: { playerId: string; play: CardPlay } | null;
   consecutivePasses: number;
   bottomCards: Card[];
-  baseBid: 1 | 2 | 3;
+  baseBid: 0 | 1 | 2 | 3;
   bombCount: number;
   rocketUsed: boolean;
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
@@ -37,7 +37,7 @@ export interface GameState {
 }
 
 export interface ScoreDetail {
-  baseBid: 1 | 2 | 3;
+  baseBid: 0 | 1 | 2 | 3;
   bombCount: number;
   rocketUsed: boolean;
   isSpring: boolean;

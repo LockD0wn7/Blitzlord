@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createDeck, shuffleDeck, dealCards } from "../utils/deck.js";
-import { FULL_DECK, CARDS_PER_PLAYER, BOTTOM_CARD_COUNT } from "../constants/card.js";
+import {
+  FULL_DECK,
+  SEQUENCE_RANKS,
+  CARDS_PER_PLAYER,
+  BOTTOM_CARD_COUNT,
+} from "../constants/card.js";
 import { Rank } from "../types/card.js";
 import type { Card } from "../types/card.js";
 
@@ -22,6 +27,20 @@ describe("createDeck", () => {
     const deck = createDeck();
     expect(deck).not.toBe(FULL_DECK);
     expect(deck).toEqual([...FULL_DECK]);
+  });
+
+  it("FULL_DECK 中的单张牌也应被冻结", () => {
+    expect(Object.isFrozen(FULL_DECK[0])).toBe(true);
+    expect(() => {
+      (FULL_DECK as Card[])[0].rank = Rank.RedJoker;
+    }).toThrow();
+  });
+
+  it("SEQUENCE_RANKS 应被冻结", () => {
+    expect(Object.isFrozen(SEQUENCE_RANKS)).toBe(true);
+    expect(() => {
+      (SEQUENCE_RANKS as Rank[]).push(Rank.Two);
+    }).toThrow();
   });
 });
 

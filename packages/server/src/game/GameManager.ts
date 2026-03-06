@@ -59,7 +59,7 @@ export class GameManager {
       lastPlay: null,
       consecutivePasses: 0,
       bottomCards: [],
-      baseBid: 1,
+      baseBid: 0,
       bombCount: 0,
       rocketUsed: false,
       callSequence: [],
@@ -352,6 +352,7 @@ export class GameManager {
     ok: boolean;
     error?: string;
     nextTurn?: string;
+    resetRound?: boolean;
   } {
     if (this.state.phase !== GamePhase.Playing) {
       return { ok: false, error: "当前不在出牌阶段" };
@@ -372,11 +373,11 @@ export class GameManager {
       this.state.currentTurn = this.state.lastPlay.playerId;
       this.state.lastPlay = null;
       this.state.consecutivePasses = 0;
-      return { ok: true, nextTurn: this.state.currentTurn };
+      return { ok: true, nextTurn: this.state.currentTurn, resetRound: true };
     }
 
     this.advanceTurn();
-    return { ok: true, nextTurn: this.state.currentTurn! };
+    return { ok: true, nextTurn: this.state.currentTurn!, resetRound: false };
   }
 
   private advanceTurn(): void {
@@ -403,15 +404,16 @@ export class GameManager {
       winnerRole,
     );
 
+    const scoringBaseBid = this.state.baseBid === 0 ? 1 : this.state.baseBid;
     const finalScore = calculateScore({
-      baseBid: this.state.baseBid,
+      baseBid: scoringBaseBid,
       bombCount: this.state.bombCount,
       rocketUsed: this.state.rocketUsed,
       isSpring: springDetected,
     });
 
     const scoreDetail: ScoreDetail = {
-      baseBid: this.state.baseBid,
+      baseBid: scoringBaseBid,
       bombCount: this.state.bombCount,
       rocketUsed: this.state.rocketUsed,
       isSpring: springDetected,

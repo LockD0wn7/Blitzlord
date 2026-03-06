@@ -86,6 +86,16 @@ describe("canBeat", () => {
     )).toBe(false);
   });
 
+  it("顺子缺失 length 时不能比较成功", () => {
+    const current = {
+      type: CardType.Straight,
+      cards: [],
+      mainRank: Rank.Four,
+    } as CardPlay;
+    const previous = play(CardType.Straight, Rank.Three, 5);
+    expect(canBeat(current, previous)).toBe(false);
+  });
+
   // 连对：需同长度
   it("同长度大连对打小连对", () => {
     expect(canBeat(

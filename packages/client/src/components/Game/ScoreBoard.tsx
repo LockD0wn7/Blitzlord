@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useGameStore } from "../../store/useGameStore";
+import { useRoomStore } from "../../store/useRoomStore";
 import { PlayerRole } from "@blitzlord/shared";
 
 export default function ScoreBoard() {
@@ -8,6 +9,7 @@ export default function ScoreBoard() {
   const gameResult = useGameStore((s) => s.gameResult);
   const players = useGameStore((s) => s.players);
   const resetGame = useGameStore((s) => s.resetGame);
+  const setCurrentRoom = useRoomStore((s) => s.setCurrentRoom);
 
   if (!gameResult) return null;
 
@@ -20,6 +22,7 @@ export default function ScoreBoard() {
 
   const handleBackToRoom = () => {
     resetGame();
+    setCurrentRoom(null);
     navigate(`/room/${roomId}`);
   };
 

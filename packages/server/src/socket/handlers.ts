@@ -217,6 +217,23 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       callback(roomManager.listRooms());
     });
 
+    // ==================== room:requestSync ====================
+    socket.on("room:requestSync", (callback) => {
+      const session = sessionManager.getBySocketId(socket.id);
+      if (!session || !session.roomId) {
+        callback({ ok: false, error: "未在房间中" });
+        return;
+      }
+
+      const room = roomManager.getRoom(session.roomId);
+      if (!room) {
+        callback({ ok: false, error: "房间不存在" });
+        return;
+      }
+
+      callback({ ok: true, room: room.toRoomDetail() });
+    });
+
     // ==================== game:ready ====================
     socket.on("game:ready", () => {
       const session = sessionManager.getBySocketId(socket.id);
@@ -453,6 +470,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       // 广播 pass
       io.to(roomId).emit("game:passed", {
         playerId: session.playerId,
+        resetRound: result.resetRound ?? false,
       });
 
       // 广播轮次切换

@@ -43,20 +43,20 @@ export const FULL_DECK: readonly Card[] = (() => {
   ];
   for (const suit of suits) {
     for (const rank of ranks) {
-      cards.push({ suit, rank });
+      cards.push(Object.freeze({ suit, rank }));
     }
   }
-  cards.push({ suit: null, rank: Rank.BlackJoker });
-  cards.push({ suit: null, rank: Rank.RedJoker });
+  cards.push(Object.freeze({ suit: null, rank: Rank.BlackJoker }));
+  cards.push(Object.freeze({ suit: null, rank: Rank.RedJoker }));
   return Object.freeze(cards);
 })();
 
 /** 顺子/连对/飞机中可用的 rank 范围（3~A，不含 2 和王） */
-export const SEQUENCE_RANKS = [
+export const SEQUENCE_RANKS: readonly Rank[] = Object.freeze([
   Rank.Three, Rank.Four, Rank.Five, Rank.Six, Rank.Seven,
   Rank.Eight, Rank.Nine, Rank.Ten, Rank.Jack, Rank.Queen,
   Rank.King, Rank.Ace,
-];
+]);
 
 /** 顺子最少张数 */
 export const MIN_STRAIGHT_LENGTH = 5;

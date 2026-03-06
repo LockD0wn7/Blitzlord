@@ -199,6 +199,68 @@ describe("Socket handlers 集成测试", () => {
     });
   });
 
+  describe("room:requestSync", () => {
+    it("已在房间中的玩家应拿到当前房间详情", async () => {
+      const { client: c1, roomId } = await createRoomWithClient("token-r1", "Alice", "同步房间");
+
+      const syncResult = await new Promise<{
+        ok: boolean;
+        room?: RoomDetail;
+        error?: string;
+      }>((resolve) => {
+        c1.emit("room:requestSync", resolve);
+      });
+
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.room?.roomId).toBe(roomId);
+      expect(syncResult.room?.players).toHaveLength(1);
+      expect(syncResult.room?.players[0].playerId).toBe("token-r1");
+    });
+
+    it("游戏结束后 room:requestSync 应返回重置后的等待房间", async () => {
+      const { client: c1, roomId } = await createRoomWithClient("token-r2", "Alice", "结算同步");
+      const c2 = await joinRoom("token-r3", "Bob", roomId);
+      const c3 = await joinRoom("token-r4", "Carol", roomId);
+
+      const { firstCaller } = await readyAndStartGame(c1, c2, c3);
+
+      const tokenClientMap = new Map<string, TypedClientSocket>([
+        ["token-r2", c1],
+        ["token-r3", c2],
+        ["token-r4", c3],
+      ]);
+
+      const callerClient = tokenClientMap.get(firstCaller)!;
+      await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        callerClient.emit("game:callLandlord", { bid: 3 }, resolve);
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const gameEndPromise = waitForEvent<{
+        winnerId: string;
+        winnerRole: PlayerRole;
+        scores: Record<string, ScoreDetail>;
+      }>(c2, "game:ended");
+      c1.emit("room:leave");
+      await gameEndPromise;
+
+      const syncResult = await new Promise<{
+        ok: boolean;
+        room?: RoomDetail;
+        error?: string;
+      }>((resolve) => {
+        c2.emit("room:requestSync", resolve);
+      });
+
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.room?.roomId).toBe(roomId);
+      expect(syncResult.room?.status).toBe("waiting");
+      expect(syncResult.room?.players).toHaveLength(2);
+      expect(syncResult.room?.players.every((player) => player.isReady === false)).toBe(true);
+    });
+  });
+
   describe("叫分 → 叫 3 分直接成为地主", () => {
     it("叫 3 分应直接决定地主", async () => {
       const { client: c1, roomId } = await createRoomWithClient("token-b1", "Alice", "叫分测试");
@@ -283,7 +345,7 @@ describe("Socket handlers 集成测试", () => {
         play: CardPlay;
         remainingCards: number;
       }>(c2, "game:cardsPlayed");
-      const nextTurnPromise = waitForEvent<{ currentTurn: string }>(c2, "game:turnChanged");
+      const nextTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
 
       const playRes = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
         callerClient.emit("game:playCards", { cards: [cardToPlay] }, resolve);
@@ -300,7 +362,12 @@ describe("Socket handlers 集成测试", () => {
 
       // 先注册 pass 和 turnChanged 的监听器，再触发 pass
       const nextClient = tokenClientMap.get(nextPlayerId)!;
-      const passedPromise = waitForEvent<{ playerId: string }>(c1, "game:passed");
+      const expectedThirdPlayerId = Array.from(tokenClientMap.keys()).find(
+        (playerId) => playerId !== firstCaller && playerId !== nextPlayerId,
+      );
+      expect(expectedThirdPlayerId).toBeDefined();
+
+      const passedPromise = waitForEvent<{ playerId: string; resetRound: boolean }>(c1, "game:passed");
       const thirdTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
 
       const passRes = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
@@ -310,9 +377,68 @@ describe("Socket handlers 集成测试", () => {
 
       const passedData = await passedPromise;
       expect(passedData.playerId).toBe(nextPlayerId);
+      expect(passedData.resetRound).toBe(false);
 
       const thirdTurn = await thirdTurnPromise;
-      expect(thirdTurn.currentTurn).not.toBe(nextPlayerId);
+      expect(thirdTurn.currentTurn).toBe(expectedThirdPlayerId);
+    });
+
+    it("连续两次 pass 后应广播 resetRound=true", async () => {
+      const { client: c1, roomId } = await createRoomWithClient("token-c4", "Alice", "pass 重置测试");
+      const c2 = await joinRoom("token-c5", "Bob", roomId);
+      const c3 = await joinRoom("token-c6", "Carol", roomId);
+
+      const { firstCaller } = await readyAndStartGame(c1, c2, c3);
+
+      const tokenClientMap = new Map<string, TypedClientSocket>([
+        ["token-c4", c1],
+        ["token-c5", c2],
+        ["token-c6", c3],
+      ]);
+
+      const callerClient = tokenClientMap.get(firstCaller)!;
+      const firstTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
+
+      await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        callerClient.emit("game:callLandlord", { bid: 3 }, resolve);
+      });
+      await firstTurnPromise;
+
+      const syncPromise = waitForEvent<GameSnapshot>(callerClient, "game:syncState");
+      callerClient.emit("game:requestSync");
+      const snapshot = await syncPromise;
+      const cardToPlay = snapshot.myHand[snapshot.myHand.length - 1];
+
+      const nextTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
+      await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        callerClient.emit("game:playCards", { cards: [cardToPlay] }, resolve);
+      });
+      const firstPassPlayerId = (await nextTurnPromise).currentTurn;
+
+      const firstPassClient = tokenClientMap.get(firstPassPlayerId)!;
+      const firstPassEventPromise = waitForEvent<{ playerId: string; resetRound: boolean }>(c1, "game:passed");
+      const secondTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
+      await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        firstPassClient.emit("game:pass", resolve);
+      });
+      const firstPassEvent = await firstPassEventPromise;
+      expect(firstPassEvent.playerId).toBe(firstPassPlayerId);
+      expect(firstPassEvent.resetRound).toBe(false);
+
+      const secondPassPlayerId = (await secondTurnPromise).currentTurn;
+      const secondPassClient = tokenClientMap.get(secondPassPlayerId)!;
+      const secondPassEventPromise = waitForEvent<{ playerId: string; resetRound: boolean }>(c1, "game:passed");
+      const resetTurnPromise = waitForEvent<{ currentTurn: string }>(c1, "game:turnChanged");
+      await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        secondPassClient.emit("game:pass", resolve);
+      });
+
+      const secondPassEvent = await secondPassEventPromise;
+      expect(secondPassEvent.playerId).toBe(secondPassPlayerId);
+      expect(secondPassEvent.resetRound).toBe(true);
+
+      const resetTurn = await resetTurnPromise;
+      expect(resetTurn.currentTurn).toBe(firstCaller);
     });
   });
 

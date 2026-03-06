@@ -212,11 +212,13 @@ describe("GameManager", () => {
       const hand = gm.getPlayerHand(landlord);
       gm.playCards(landlord, [hand[hand.length - 1]]);
       // 下家 pass
-      gm.pass(gm.currentTurn!);
+      const firstPass = gm.pass(gm.currentTurn!);
+      expect(firstPass.resetRound).toBe(false);
       // 再下家 pass
       const result = gm.pass(gm.currentTurn!);
       expect(result.ok).toBe(true);
       expect(result.nextTurn).toBe(landlord);
+      expect(result.resetRound).toBe(true);
       // 此时 lastPlay 应为 null（自由出牌）
       expect(gm.lastPlay).toBeNull();
     });
@@ -301,6 +303,13 @@ describe("GameManager", () => {
       const caller = gm.currentCallerId!;
       const snapshot = gm.getFullState(caller);
       expect(snapshot.currentTurn).toBe(caller);
+    });
+
+    it("叫分阶段 baseBid 应为 0", () => {
+      const gm = createGame();
+      const caller = gm.currentCallerId!;
+      const snapshot = gm.getFullState(caller);
+      expect(snapshot.baseBid).toBe(0);
     });
 
     it("确定地主后 bottomCards 应有值", () => {

@@ -44,6 +44,17 @@ describe("Room", () => {
       const seat = room.addPlayer("p3", "Carol");
       expect(seat).toBe(0);
     });
+
+    it("补位后 players 应按 seatIndex 排序", () => {
+      room.addPlayer("p1", "Alice");
+      room.addPlayer("p2", "Bob");
+      room.addPlayer("p3", "Carol");
+      room.removePlayer("p2");
+      room.addPlayer("p4", "Dave");
+
+      expect(room.players.map((player) => player.seatIndex)).toEqual([0, 1, 2]);
+      expect(room.players.map((player) => player.playerId)).toEqual(["p1", "p4", "p3"]);
+    });
   });
 
   describe("ready / allReady", () => {

@@ -20,6 +20,10 @@ export interface ClientEvents {
     callback: (rooms: RoomInfo[]) => void,
   ) => void;
 
+  "room:requestSync": (
+    callback: (res: { ok: boolean; room?: RoomDetail; error?: string }) => void,
+  ) => void;
+
   "game:ready": () => void;
 
   "game:callLandlord": (
@@ -75,6 +79,7 @@ export interface ServerEvents {
 
   "game:passed": (data: {
     playerId: string;
+    resetRound: boolean;
   }) => void;
 
   "game:ended": (data: {

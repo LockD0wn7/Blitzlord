@@ -18,7 +18,7 @@ export class Room {
   }
 
   get players(): readonly RoomPlayer[] {
-    return this._players;
+    return [...this._players].sort((a, b) => a.seatIndex - b.seatIndex);
   }
 
   get playerCount(): number {
@@ -121,7 +121,7 @@ export class Room {
       roomId: this.roomId,
       roomName: this.roomName,
       status: this._status,
-      players: [...this._players],
+      players: [...this.players],
       maxPlayers: 3,
     };
   }

@@ -415,6 +415,28 @@ body {
     linear-gradient(180deg, rgba(18, 27, 51, 0.96) 0%, rgba(12, 20, 39, 0.98) 100%);
 }
 
+.tracker-history__round {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 2px 8px;
+  padding: 0 4px;
+  color: var(--color-gold-light);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tracker-history__round::before,
+.tracker-history__round::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-gold) 40%, transparent) 100%);
+}
+
 .tracker-history__header {
   display: flex;
   align-items: center;

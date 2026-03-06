@@ -36,4 +36,37 @@ describe("CardTrackerPanel", () => {
     expect(html).toContain("Bob");
     expect(html).toContain("出牌");
   });
+
+  it("renders round separators and dialog semantics", () => {
+    const html = renderToStaticMarkup(
+      <CardTrackerPanel
+        open
+        onClose={() => {}}
+        remainingByRank={[]}
+        history={[
+          {
+            sequence: 4,
+            round: 2,
+            playerId: "p1",
+            action: "play",
+            cards: [],
+          },
+          {
+            sequence: 3,
+            round: 1,
+            playerId: "p2",
+            action: "pass",
+            cards: [],
+          },
+        ]}
+        playerNames={{ p1: "Alice", p2: "Bob" }}
+      />,
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).not.toContain('aria-hidden="true"');
+    expect(html).toContain("新一轮");
+    expect(html).toContain("Round 2");
+  });
 });

@@ -66,11 +66,13 @@ export default function CardTrackerPanel({
   }
 
   return (
-    <div className="tracker-panel-overlay" onClick={onClose} aria-hidden="true">
+    <div className="tracker-panel-overlay" onClick={onClose}>
       <aside
         className="tracker-panel"
         onClick={stopBubbling}
         aria-label="记牌器"
+        aria-modal="true"
+        role="dialog"
       >
         <div className="tracker-panel__glow" />
 
@@ -150,45 +152,54 @@ export default function CardTrackerPanel({
             {history.length === 0 ? (
               <div className="tracker-history__empty">本局还没有公开动作</div>
             ) : (
-              history.map((entry) => (
-                <article key={entry.sequence} className="tracker-history__entry">
-                  <div className="tracker-history__header">
-                    <div className="tracker-history__badge">
-                      R{entry.round} / #{entry.sequence}
+              history.map((entry, index) => (
+                <div key={entry.sequence}>
+                  {(index === 0 || history[index - 1]?.round !== entry.round) && (
+                    <div className="tracker-history__round">
+                      <span>新一轮</span>
+                      <span>Round {entry.round}</span>
                     </div>
-                    <div className="tracker-history__player">
-                      {formatPlayerName(entry.playerId, playerNames)}
-                    </div>
-                    <div
-                      className={`tracker-history__action${
-                        entry.action === "pass"
-                          ? " tracker-history__action--pass"
-                          : ""
-                      }`}
-                    >
-                      {formatAction(entry)}
-                    </div>
-                  </div>
-
-                  {entry.action === "play" && entry.cards.length > 0 ? (
-                    <div className="tracker-history__cards">
-                      {entry.cards.map((card, index) => (
-                        <div
-                          key={`${entry.sequence}-${card.rank}-${card.suit}-${index}`}
-                          className="tracker-history__card"
-                        >
-                          <CardComponent card={card} small />
-                        </div>
-                      ))}
-                    </div>
-                  ) : entry.action === "pass" ? (
-                    <div className="tracker-history__passNote">
-                      放弃跟牌，点数统计不变
-                    </div>
-                  ) : (
-                    <div className="tracker-history__passNote">已广播出牌</div>
                   )}
-                </article>
+
+                  <article className="tracker-history__entry">
+                    <div className="tracker-history__header">
+                      <div className="tracker-history__badge">
+                        R{entry.round} / #{entry.sequence}
+                      </div>
+                      <div className="tracker-history__player">
+                        {formatPlayerName(entry.playerId, playerNames)}
+                      </div>
+                      <div
+                        className={`tracker-history__action${
+                          entry.action === "pass"
+                            ? " tracker-history__action--pass"
+                            : ""
+                        }`}
+                      >
+                        {formatAction(entry)}
+                      </div>
+                    </div>
+
+                    {entry.action === "play" && entry.cards.length > 0 ? (
+                      <div className="tracker-history__cards">
+                        {entry.cards.map((card, cardIndex) => (
+                          <div
+                            key={`${entry.sequence}-${card.rank}-${card.suit}-${cardIndex}`}
+                            className="tracker-history__card"
+                          >
+                            <CardComponent card={card} small />
+                          </div>
+                        ))}
+                      </div>
+                    ) : entry.action === "pass" ? (
+                      <div className="tracker-history__passNote">
+                        放弃跟牌，点数统计不变
+                      </div>
+                    ) : (
+                      <div className="tracker-history__passNote">已广播出牌</div>
+                    )}
+                  </article>
+                </div>
               ))
             )}
           </div>

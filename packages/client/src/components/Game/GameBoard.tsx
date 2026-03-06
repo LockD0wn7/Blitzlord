@@ -9,8 +9,6 @@ import {
   PlayerRole,
   CardType,
   RoomStatus,
-  buildCardTrackerSnapshot,
-  cardEquals,
   sortCards,
 } from "@blitzlord/shared";
 import type {
@@ -27,35 +25,12 @@ import CallLandlord from "./CallLandlord";
 import ScoreBoard from "./ScoreBoard";
 import CardComponent from "./CardComponent";
 import CardTrackerPanel from "./CardTrackerPanel";
-
-function getNextTrackerSequence(snapshot: GameSnapshot["tracker"]): number {
-  return (snapshot.history.at(-1)?.sequence ?? 0) + 1;
-}
-
-function getCurrentTrackerRound(snapshot: GameSnapshot["tracker"]): number {
-  return snapshot.history.at(-1)?.round ?? 1;
-}
-
-function getNextPlayTrackerRound(
-  snapshot: GameSnapshot["tracker"],
-  lastPlay: GameSnapshot["lastPlay"],
-): number {
-  if (snapshot.history.length === 0) {
-    return 1;
-  }
-
-  if (lastPlay === null) {
-    return getCurrentTrackerRound(snapshot) + 1;
-  }
-
-  return getCurrentTrackerRound(snapshot);
-}
-
-function removePlayedCardsFromHand(hand: Card[], cards: Card[]): Card[] {
-  return hand.filter(
-    (handCard) => !cards.some((card) => cardEquals(card, handCard)),
-  );
-}
+import {
+  buildTrackerPassEntry,
+  buildTrackerPlayUpdate,
+  buildTrackerStateForGameStart,
+  buildTrackerStateForLandlordDecision,
+} from "./trackerState";
 
 export default function GameBoard() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -135,12 +110,7 @@ export default function GameBoard() {
           isOnline: true,
         })),
       );
-      store.syncTracker(
-        buildCardTrackerSnapshot({
-          myHand: sortedHand,
-          history: [],
-        }),
-      );
+      store.syncTracker(buildTrackerStateForGameStart(sortedHand));
       setLastPassPlayerId(null);
     };
 
@@ -160,10 +130,13 @@ export default function GameBoard() {
       baseBid: 1 | 2 | 3;
     }) => {
       const store = useGameStore.getState();
-      const nextHand =
-        data.landlordId === token
-          ? sortCards([...store.myHand, ...data.bottomCards])
-          : store.myHand;
+      const trackerState = buildTrackerStateForLandlordDecision({
+        token,
+        landlordId: data.landlordId,
+        myHand: store.myHand,
+        bottomCards: data.bottomCards,
+        history: store.tracker.history,
+      });
 
       store.setBottomCards(data.bottomCards);
       store.setBaseBid(data.baseBid);
@@ -182,17 +155,12 @@ export default function GameBoard() {
 
       if (data.landlordId === token) {
         store.setMyRole(PlayerRole.Landlord);
-        store.setHand(nextHand);
+        store.setHand(trackerState.nextHand);
       } else {
         store.setMyRole(PlayerRole.Peasant);
       }
 
-      store.syncTracker(
-        buildCardTrackerSnapshot({
-          myHand: nextHand,
-          history: store.tracker.history,
-        }),
-      );
+      store.syncTracker(trackerState.tracker);
       store.setCurrentTurn(data.landlordId);
     };
 
@@ -206,26 +174,22 @@ export default function GameBoard() {
       remainingCards: number;
     }) => {
       const store = useGameStore.getState();
-      const nextHand =
-        data.playerId === token
-          ? removePlayedCardsFromHand(store.myHand, data.play.cards)
-          : store.myHand;
-      const nextEntry = {
-        sequence: getNextTrackerSequence(store.tracker),
-        round: getNextPlayTrackerRound(store.tracker, store.lastPlay),
+      const trackerUpdate = buildTrackerPlayUpdate({
+        token,
         playerId: data.playerId,
-        action: "play" as const,
-        cards: data.play.cards.map((card) => ({ ...card })),
-      };
-      const nextTracker = buildCardTrackerSnapshot({
-        myHand: nextHand,
-        history: [...store.tracker.history, nextEntry],
+        myHand: store.myHand,
+        tracker: store.tracker,
+        lastPlay: store.lastPlay,
+        play: data.play,
       });
 
       store.setLastPlay({ playerId: data.playerId, play: data.play });
       setLastPassPlayerId(null);
       store.updatePlayerCardCount(data.playerId, data.remainingCards);
-      store.appendTrackerPlay(nextEntry, nextTracker.remainingByRank);
+      store.appendTrackerPlay(
+        trackerUpdate.entry,
+        trackerUpdate.tracker.remainingByRank,
+      );
 
       if (data.play.type === CardType.Bomb) {
         store.setBombCount(store.bombCount + 1);
@@ -240,14 +204,12 @@ export default function GameBoard() {
 
     const onPassed = (data: { playerId: string; resetRound: boolean }) => {
       const store = useGameStore.getState();
-
-      store.appendTrackerPass({
-        sequence: getNextTrackerSequence(store.tracker),
-        round: getCurrentTrackerRound(store.tracker),
+      const trackerUpdate = buildTrackerPassEntry({
+        tracker: store.tracker,
         playerId: data.playerId,
-        action: "pass",
-        cards: [],
       });
+
+      store.appendTrackerPass(trackerUpdate.entry);
 
       if (data.resetRound) {
         store.setLastPlay(null);

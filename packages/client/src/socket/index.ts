@@ -23,6 +23,11 @@ export function getSocket(): TypedSocket {
     const opts = {
       auth: { token, playerName: localStorage.getItem("playerName") || "玩家" },
       autoConnect: false,
+      // Render 免费实例冷启动需要 30-60 秒，增加超时
+      timeout: 60_000,
+      reconnectionDelay: 2_000,
+      reconnectionDelayMax: 10_000,
+      reconnectionAttempts: 10,
     };
     socket = (SERVER_URL ? io(SERVER_URL, opts) : io(opts)) as TypedSocket;
   }

@@ -42,7 +42,7 @@ function countByRank(cards: Card[]): Map<Rank, number> {
 function cloneHistory(history: TrackerHistoryEntry[]): TrackerHistoryEntry[] {
   return history.map((entry) => ({
     ...entry,
-    cards: [...entry.cards],
+    cards: entry.cards.map((card) => ({ ...card })),
   }));
 }
 

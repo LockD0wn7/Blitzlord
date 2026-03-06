@@ -82,6 +82,7 @@ describe("buildCardTrackerSnapshot", () => {
     expect(snapshot.history[0].cards).not.toBe(history[0].cards);
 
     snapshot.history[0].cards.push(card(Rank.King, Suit.Heart));
+    snapshot.history[0].cards[0].suit = Suit.Club;
 
     expect(history[0].cards).toEqual([card(Rank.Ace, Suit.Spade)]);
   });

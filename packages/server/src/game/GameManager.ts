@@ -400,6 +400,7 @@ export class GameManager {
     const springDetected = anyPlayed && isSpring(
       landlord.playCount,
       [peasants[0].playCount, peasants[1].playCount],
+      winnerRole,
     );
 
     const finalScore = calculateScore({

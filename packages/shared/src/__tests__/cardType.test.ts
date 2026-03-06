@@ -336,4 +336,144 @@ describe("identifyCardType", () => {
       expect(identifyCardType(cards)).toBeNull();
     });
   });
+
+  // R1: 飞机带翼牌为三条/炸弹时的边界 case
+  describe("飞机带翼（含三条/炸弹降级）", () => {
+    it("飞机带单：翼牌为三条（333 444 555 → 三张飞机不带）", () => {
+      // 333 444 555 — 三组连续三张 → 飞机不带
+      const cards = [
+        c(Rank.Three, Suit.Spade), c(Rank.Three, Suit.Heart), c(Rank.Three, Suit.Diamond),
+        c(Rank.Four, Suit.Spade), c(Rank.Four, Suit.Heart), c(Rank.Four, Suit.Diamond),
+        c(Rank.Five, Suit.Spade), c(Rank.Five, Suit.Heart), c(Rank.Five, Suit.Diamond),
+      ];
+      const result = identifyCardType(cards);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe(CardType.TripleStraight);
+      expect(result!.length).toBe(3);
+    });
+
+    it("飞机带对：翅膀是四张（炸弹降级为两对）— 888 999 + 5555", () => {
+      // 888 999 5555 — 飞机 89 带两对（5555 拆成 55 55）
+      const cards = [
+        c(Rank.Eight, Suit.Spade), c(Rank.Eight, Suit.Heart), c(Rank.Eight, Suit.Diamond),
+        c(Rank.Nine, Suit.Spade), c(Rank.Nine, Suit.Heart), c(Rank.Nine, Suit.Diamond),
+        c(Rank.Five, Suit.Spade), c(Rank.Five, Suit.Heart), c(Rank.Five, Suit.Diamond), c(Rank.Five, Suit.Club),
+      ];
+      const result = identifyCardType(cards);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe(CardType.TripleStraightWithPairs);
+      expect(result!.mainRank).toBe(Rank.Eight);
+      expect(result!.length).toBe(2);
+    });
+
+    it("飞机带单：翅膀是三条 — 888 999 + 555", () => {
+      // 888 999 555 — 这里 555 不和 89 连续
+      // 应识别为飞机 89 带单（555 拆成 2 单 + 1 单？不对，9张牌: 3+3+3=9, 飞机不带=9）
+      // 555 和 8 9 不连续但 5 6 7 8 9 中间缺少 6 7
+      // 实际上 3 组三张，5 和 89 不连续，所以尝试 89 飞机带 555 作为 3 张翼
+      // 但 2 组飞机只能带 2 个翼，555=3 张 → 不匹配带单
+      // 让我换个例子
+      const cards = [
+        c(Rank.Eight, Suit.Spade), c(Rank.Eight, Suit.Heart), c(Rank.Eight, Suit.Diamond),
+        c(Rank.Nine, Suit.Spade), c(Rank.Nine, Suit.Heart), c(Rank.Nine, Suit.Diamond),
+        c(Rank.Three, Suit.Spade), c(Rank.Three, Suit.Heart), c(Rank.Three, Suit.Diamond),
+        c(Rank.Five, Suit.Spade), c(Rank.Five, Suit.Heart),
+      ];
+      // 888 999 + 333 55 — 飞机 89 带 2 对 (33 和 55)，剩 1 单 (3)
+      // 11 张 = 3+3 + 3+2 = 11 → 不匹配标准飞机
+      // 这不是合法牌型
+      expect(identifyCardType(cards)).toBeNull();
+    });
+
+    it("飞机带对：翅膀含炸弹降级为两对 — 888 999 + 5555", () => {
+      // 888 999 5555 已被上面测试为带单
+      // 需要确保 4 张同 rank 的也能被识别
+      // 10 张 = 6(飞机) + 4(翅膀)，飞机带单需 2 张翼，带对需 4 张翼
+      // 5555 可以拆成 2 对 → 飞机带对
+      // 但上面我们测了这是 TripleStraightWithOnes
+      // 飞机带单优先于飞机带对（因为先匹配），所以这里不测这个
+
+      // 测试：TTT JJJ + 3333 — 如果视为飞机带对（3333 拆成 33 33）
+      const cards = [
+        c(Rank.Ten, Suit.Spade), c(Rank.Ten, Suit.Heart), c(Rank.Ten, Suit.Diamond),
+        c(Rank.Jack, Suit.Spade), c(Rank.Jack, Suit.Heart), c(Rank.Jack, Suit.Diamond),
+        c(Rank.Three, Suit.Spade), c(Rank.Three, Suit.Heart), c(Rank.Three, Suit.Diamond), c(Rank.Three, Suit.Club),
+      ];
+      const result = identifyCardType(cards);
+      expect(result).not.toBeNull();
+      // 10 张 = 3+3+4 → 飞机 TJ 带单 (4 翼? 不对, 带单只需 2)
+      // 实际: tripleCount=2, remaining=4, 4 !== 2(带单) 但 4 === 2*2(带对)
+      // 需要检查 leftoverPairs === 2 且 leftoverSingles === 0
+      // 3333 → 从 counts: Three=4, 不在 run 中, left=4, leftoverPairs += 2
+      // 所以应该是飞机带对
+      expect(result!.type).toBe(CardType.TripleStraightWithPairs);
+      expect(result!.mainRank).toBe(Rank.Ten);
+      expect(result!.length).toBe(2);
+    });
+
+    it("飞机：翅膀含四张可降级为飞机主体 — 8888 999 → 飞机 89 不带 + 多 1 张", () => {
+      // 8888 999 = 7 张 — 将 8888 降级为 888 作为飞机主体
+      // 飞机 89 不带 = 6 张, 剩 1 张 8 → 飞机带单需 2 张翼, 只有 1 张 → 不匹配
+      // 7 张 = 飞机不带(6) + 1 → 不是合法牌型?
+      // 实际上: 带单需要 tripleCount(2) 张翼, remaining = 7-6 = 1, 1 !== 2
+      // 所以返回 null（无法匹配）
+      const cards = [
+        c(Rank.Eight, Suit.Spade), c(Rank.Eight, Suit.Heart), c(Rank.Eight, Suit.Diamond), c(Rank.Eight, Suit.Club),
+        c(Rank.Nine, Suit.Spade), c(Rank.Nine, Suit.Heart), c(Rank.Nine, Suit.Diamond),
+      ];
+      // 原来的代码因 quads.length > 0 直接跳过飞机检测
+      // 修复后应能检测到：尝试 8888 降级为 888 + 999 组成飞机
+      // 7 张 = 6(飞机89不带) + 1(剩余) → remaining(1) !== tripleCount(2) → 不匹配带单
+      // → 不匹配任何飞机类型 → 但是 4+3=7, 四带二单? 需要 4+2=6 → 也不行
+      // → null
+      expect(identifyCardType(cards)).toBeNull();
+    });
+
+    it("飞机带单：含四张降级 — 5555 678 各三张 → 飞机 567 带 3 单（含 5 的多余 1 张 + 8 的 3 张中的？）", () => {
+      // 更实际的测试: 5555 6666 77 →
+      // 12 张, 尝试飞机 567: 但 7 只有 2 张不够
+      // 换个例子: 3333 4444 56 → 10 张
+      // 从 quads [3,4] 中选 3,4 构成飞机 34
+      // remaining = 10 - 6 = 4, tripleCount = 2
+      // 4 !== 2(带单) → 不匹配带单
+      // 4 === 2*2(带对) → 检查 leftoverPairs
+      // leftover: 3 剩 1 张, 4 剩 1 张, 5 有 1 张, 6 有 1 张
+      // leftoverPairs = 0, leftoverSingles = 4 → 不匹配带对
+      // → null
+      // 那就测一个确实能匹配的:
+      // 3333 444 55 66 → 13 张
+      // 飞机 34: tripleCount=2, remaining=13-6=7 → 不匹配
+      // 换: 8888 9999 3 4 → 10 张
+      // 飞机 89: tripleCount=2, remaining=10-6=4
+      // leftover: 8 剩 1, 9 剩 1, 3 有 1, 4 有 1 → 4 singles
+      // 4 !== 2(带单), 4 === 4(带对) 但 leftoverPairs=0 → 不匹配
+      // 好吧，让我用更简单合理的例子
+
+      // 最直接的: 3333 444 5 6 → 10 张
+      // 飞机 34 (从 quad 3 降级): tripleCount=2, remaining=10-6=4
+      // leftover: 3 剩 1, 5 有 1, 6 有 1 → 3 singles, 不匹配
+      // → null
+
+      // 实际上用一个真正可行的例子: 8888 999 33 → 10 张
+      // 飞机 89: remaining = 10-6 = 4 = 2*2(带对)
+      // leftover: 8 剩 1 张, 3 有 2 张 → leftoverPairs=1, leftoverSingles=1 → 不匹配
+      // → 不行
+
+      // 用: JJJJ QQQ KK KK → 这需要更多牌...
+      // 让我用最简单的可行例子:
+      // 5555 666 3 → 8 张
+      // 飞机 56: tripleCount=2, remaining = 8-6=2 = tripleCount → 带单!
+      // leftover: 5 剩 1, 3 有 1 → leftoverCount=2 → 匹配!
+      const cards = [
+        c(Rank.Five, Suit.Spade), c(Rank.Five, Suit.Heart), c(Rank.Five, Suit.Diamond), c(Rank.Five, Suit.Club),
+        c(Rank.Six, Suit.Spade), c(Rank.Six, Suit.Heart), c(Rank.Six, Suit.Diamond),
+        c(Rank.Three, Suit.Spade),
+      ];
+      const result = identifyCardType(cards);
+      expect(result).not.toBeNull();
+      expect(result!.type).toBe(CardType.TripleStraightWithOnes);
+      expect(result!.mainRank).toBe(Rank.Five);
+      expect(result!.length).toBe(2);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRoomStore } from "../../store/useRoomStore";
 import { useGameStore } from "../../store/useGameStore";
@@ -26,6 +26,9 @@ export default function RoomView() {
     connectSocket();
   }, []);
 
+  // M2: 用 ref 追踪是否已发送 join，避免 currentRoom 变化导致重复注册
+  const hasJoinedRef = useRef(false);
+
   // 监听 room:updated
   useEffect(() => {
     const socket = getSocket();
@@ -38,7 +41,8 @@ export default function RoomView() {
 
     // 如果没有当前房间数据且有 roomId，需要通过加入来获取
     // （直接访问 URL 的情况）
-    if (!currentRoom && roomId) {
+    if (!hasJoinedRef.current && roomId) {
+      hasJoinedRef.current = true;
       socket.emit(
         "room:join",
         { roomId, playerName: playerName || "玩家" },
@@ -54,7 +58,7 @@ export default function RoomView() {
     return () => {
       socket.off("room:updated", onRoomUpdated);
     };
-  }, [roomId, currentRoom, setCurrentRoom, playerName]);
+  }, [roomId, setCurrentRoom, playerName]);
 
   // 监听 game:started
   useEffect(() => {

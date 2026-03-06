@@ -31,12 +31,24 @@ export function getSocket(): TypedSocket {
 
 export function connectSocket(): void {
   const s = getSocket();
-  if (!s.connected) {
-    // 更新 auth 中的 playerName（可能已更改）
-    s.auth = {
-      token: getToken(),
-      playerName: localStorage.getItem("playerName") || "玩家",
-    };
+  const newAuth = {
+    token: getToken(),
+    playerName: localStorage.getItem("playerName") || "玩家",
+  };
+
+  if (s.connected) {
+    // R7: 即使已连接，也检查 auth 是否变化，变化则断开重连
+    const currentAuth = s.auth as { token?: string; playerName?: string };
+    if (
+      currentAuth.playerName !== newAuth.playerName ||
+      currentAuth.token !== newAuth.token
+    ) {
+      s.auth = newAuth;
+      s.disconnect();
+      s.connect();
+    }
+  } else {
+    s.auth = newAuth;
     s.connect();
   }
 }

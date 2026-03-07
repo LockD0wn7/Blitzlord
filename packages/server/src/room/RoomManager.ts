@@ -7,12 +7,12 @@ export class RoomManager {
   private rooms = new Map<string, Room>();
 
   /** 创建房间并将创建者加入 */
-  createRoom(roomName: string, playerId: string, playerName: string): Room {
+  createRoom(roomName: string, playerId: string, playerName: string, wildcard: boolean = false): Room {
     let roomId: string;
     do {
       roomId = randomUUID().slice(0, 8);
     } while (this.rooms.has(roomId));
-    const room = new Room(roomId, roomName);
+    const room = new Room(roomId, roomName, wildcard);
     room.addPlayer(playerId, playerName);
     this.rooms.set(roomId, room);
     return room;

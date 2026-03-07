@@ -130,7 +130,8 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      const room = roomManager.createRoom(roomName, session.playerId, session.playerName);
+      const wildcard = typeof data.wildcard === "boolean" ? data.wildcard : false;
+      const room = roomManager.createRoom(roomName, session.playerId, session.playerName, wildcard);
       session.roomId = room.roomId;
       socket.join(room.roomId);
       io.emit("room:listUpdated", roomManager.listRooms());
@@ -266,7 +267,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           playerName: p.playerName,
         }));
 
-        const game = new GameManager(session.roomId, gamePlayers);
+        const game = new GameManager(session.roomId, gamePlayers, room.wildcard);
         games.set(session.roomId, game);
 
         // 向每个玩家分别推送 game:started（各自手牌不同）
@@ -358,7 +359,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           landlordId: result.landlord.playerId,
           bottomCards: result.landlord.bottomCards,
           baseBid: result.landlord.baseBid,
-          wildcardRank: null,
+          wildcardRank: result.landlord.wildcardRank,
         });
 
         // 给地主推送完整状态（含底牌后的新手牌）
@@ -497,6 +498,71 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       }
 
       socket.emit("game:syncState", game.getFullState(session.playerId));
+    });
+
+    // ==================== room:voteMode ====================
+    socket.on("room:voteMode", (data, callback) => {
+      const session = sessionManager.getBySocketId(socket.id);
+      if (!session || !session.roomId) {
+        callback({ ok: false, error: "未在房间中" });
+        return;
+      }
+
+      const room = roomManager.getRoom(session.roomId);
+      if (!room) {
+        callback({ ok: false, error: "房间不存在" });
+        return;
+      }
+
+      if (room.status !== RoomStatus.Waiting && room.status !== RoomStatus.Finished) {
+        callback({ ok: false, error: "当前状态不能发起投票" });
+        return;
+      }
+
+      const result = room.startModeVote(session.playerId, data.wildcard);
+      if (!result.ok) {
+        callback({ ok: false, error: result.error });
+        return;
+      }
+
+      io.to(session.roomId).emit("room:voteModeStarted", {
+        initiator: session.playerId,
+        wildcard: data.wildcard,
+      });
+      callback({ ok: true });
+    });
+
+    // ==================== room:voteModeVote ====================
+    socket.on("room:voteModeVote", (data, callback) => {
+      const session = sessionManager.getBySocketId(socket.id);
+      if (!session || !session.roomId) {
+        callback({ ok: false, error: "未在房间中" });
+        return;
+      }
+
+      const room = roomManager.getRoom(session.roomId);
+      if (!room) {
+        callback({ ok: false, error: "房间不存在" });
+        return;
+      }
+
+      const result = room.castModeVote(session.playerId, data.agree);
+      if (!result.ok) {
+        callback({ ok: false, error: result.error });
+        return;
+      }
+
+      if (result.result) {
+        io.to(session.roomId).emit("room:voteModeResult", {
+          passed: result.result.passed,
+          wildcard: result.result.wildcard,
+        });
+        if (result.result.passed) {
+          io.to(session.roomId).emit("room:updated", room.toRoomDetail());
+        }
+      }
+
+      callback({ ok: true });
     });
 
     // ==================== disconnect ====================

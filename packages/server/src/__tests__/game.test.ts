@@ -19,6 +19,13 @@ function createGame(): GameManager {
   return new GameManager("room-1", PLAYERS);
 }
 
+function findTrackerStat(
+  snapshot: ReturnType<GameManager["getFullState"]>,
+  rank: Rank,
+) {
+  return snapshot.tracker.remainingByRank.find((entry) => entry.rank === rank);
+}
+
 describe("GameManager", () => {
   describe("初始化", () => {
     it("创建后应进入叫分阶段", () => {
@@ -326,6 +333,110 @@ describe("GameManager", () => {
       const caller = gm.currentCallerId!;
       const snapshot = gm.getFullState(caller);
       expect(snapshot.bottomCards).toHaveLength(0);
+    });
+  });
+
+  describe("tracker snapshot", () => {
+    function setupTrackerPlaying(gm: GameManager): string {
+      const caller = gm.currentCallerId!;
+      gm.callBid(caller, 1);
+      const c2 = gm.currentCallerId!;
+      if (c2) gm.callBid(c2, 0);
+      const c3 = gm.currentCallerId!;
+      if (c3) gm.callBid(c3, 0);
+      return caller;
+    }
+
+    it("includes tracker history and remaining counts in getFullState", () => {
+      const gm = createGame();
+      const landlord = setupTrackerPlaying(gm);
+      const playedCard = gm.getPlayerHand(landlord)[0];
+
+      const playResult = gm.playCards(landlord, [playedCard]);
+      expect(playResult.ok).toBe(true);
+
+      const snapshot = gm.getFullState(landlord);
+      const stat = findTrackerStat(snapshot, playedCard.rank);
+
+      expect(snapshot.tracker.history).toHaveLength(1);
+      expect(snapshot.tracker.history[0]).toMatchObject({
+        sequence: 1,
+        round: 1,
+        playerId: landlord,
+        action: "play",
+        cards: [playedCard],
+      });
+      expect(stat).toMatchObject({
+        rank: playedCard.rank,
+        playedCopies: 1,
+      });
+    });
+
+    it("records pass in history without changing remaining stats", () => {
+      const gm = createGame();
+      const landlord = setupTrackerPlaying(gm);
+      const playedCard = gm.getPlayerHand(landlord)[0];
+
+      gm.playCards(landlord, [playedCard]);
+      const beforePass = gm.getFullState(landlord);
+
+      const passPlayer = gm.currentTurn!;
+      const passResult = gm.pass(passPlayer);
+      expect(passResult.ok).toBe(true);
+
+      const afterPass = gm.getFullState(landlord);
+
+      expect(afterPass.tracker.history).toHaveLength(2);
+      expect(afterPass.tracker.history[1]).toMatchObject({
+        sequence: 2,
+        round: 1,
+        playerId: passPlayer,
+        action: "pass",
+        cards: [],
+      });
+      expect(afterPass.tracker.remainingByRank).toEqual(beforePass.tracker.remainingByRank);
+    });
+
+    it("starts a new tracker round after two passes reset control", () => {
+      const gm = createGame();
+      const landlord = setupTrackerPlaying(gm);
+      const firstPlay = gm.getPlayerHand(landlord)[0];
+
+      gm.playCards(landlord, [firstPlay]);
+      gm.pass(gm.currentTurn!);
+      gm.pass(gm.currentTurn!);
+
+      const nextPlay = gm.getPlayerHand(landlord)[0];
+      const nextPlayResult = gm.playCards(landlord, [nextPlay]);
+      expect(nextPlayResult.ok).toBe(true);
+
+      const snapshot = gm.getFullState(landlord);
+      expect(snapshot.tracker.history[2]).toMatchObject({
+        sequence: 3,
+        round: 1,
+        action: "pass",
+      });
+      expect(snapshot.tracker.history.at(-1)).toMatchObject({
+        sequence: 4,
+        round: 2,
+        playerId: landlord,
+        action: "play",
+        cards: [nextPlay],
+      });
+    });
+
+    it("clears tracker history when dealing a new round", () => {
+      const gm = createGame();
+      const landlord = setupTrackerPlaying(gm);
+      const playedCard = gm.getPlayerHand(landlord)[0];
+
+      gm.playCards(landlord, [playedCard]);
+      expect(gm.getFullState(landlord).tracker.history).toHaveLength(1);
+
+      (gm as unknown as { deal: () => void }).deal();
+
+      const snapshot = gm.getFullState(landlord);
+      expect(snapshot.tracker.history).toEqual([]);
     });
   });
 

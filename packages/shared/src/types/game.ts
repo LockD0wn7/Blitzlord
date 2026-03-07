@@ -1,4 +1,4 @@
-import type { Card, CardPlay } from "./card.js";
+import type { Card, CardPlay, Rank } from "./card.js";
 
 export enum GamePhase {
   Dealing = "dealing",
@@ -18,7 +18,7 @@ export interface PlayerState {
   hand: Card[];
   role: PlayerRole | null;
   isOnline: boolean;
-  playCount: number; // 出牌次数（用于春天判定）
+  playCount: number; // 出牌次数，用于春天判定
 }
 
 export interface GameState {
@@ -44,7 +44,28 @@ export interface ScoreDetail {
   finalScore: number;
 }
 
-/** 玩家视角的完整状态快照（用于 syncState 重连推送） */
+export interface TrackerHistoryEntry {
+  sequence: number;
+  round: number;
+  playerId: string;
+  action: "play" | "pass";
+  cards: Card[];
+}
+
+export interface TrackerRankStat {
+  rank: Rank;
+  totalCopies: number;
+  playedCopies: number;
+  myCopies: number;
+  remainingOpponentCopies: number;
+}
+
+export interface CardTrackerSnapshot {
+  history: TrackerHistoryEntry[];
+  remainingByRank: TrackerRankStat[];
+}
+
+/** 玩家视角的完整状态快照，用于 syncState 重连推送 */
 export interface GameSnapshot {
   roomId: string;
   phase: GamePhase;
@@ -65,4 +86,5 @@ export interface GameSnapshot {
     isOnline: boolean;
   }[];
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
+  tracker: CardTrackerSnapshot;
 }

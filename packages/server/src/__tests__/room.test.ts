@@ -129,6 +129,105 @@ describe("Room", () => {
       expect(detail.players).toHaveLength(1);
       expect(detail.players[0].playerName).toBe("Alice");
     });
+
+    it("toRoomInfo 和 toRoomDetail 包含 wildcard", () => {
+      const wildcardRoom = new Room("room-w", "赖子房间", true);
+      wildcardRoom.addPlayer("p1", "Alice");
+      expect(wildcardRoom.toRoomInfo().wildcard).toBe(true);
+      expect(wildcardRoom.toRoomDetail().wildcard).toBe(true);
+    });
+  });
+
+  describe("wildcard 封装", () => {
+    it("创建房间时设置 wildcard 模式", () => {
+      const wildcardRoom = new Room("room-w", "赖子房间", true);
+      expect(wildcardRoom.wildcard).toBe(true);
+    });
+
+    it("默认 wildcard 为 false", () => {
+      expect(room.wildcard).toBe(false);
+    });
+  });
+
+  describe("模式投票 (startModeVote / castModeVote)", () => {
+    beforeEach(() => {
+      room.addPlayer("p1", "Alice");
+      room.addPlayer("p2", "Bob");
+      room.addPlayer("p3", "Carol");
+    });
+
+    it("startModeVote 发起投票成功", () => {
+      const result = room.startModeVote("p1", true);
+      expect(result.ok).toBe(true);
+      expect(room.modeVote).not.toBeNull();
+      expect(room.modeVote!.initiator).toBe("p1");
+      expect(room.modeVote!.wildcard).toBe(true);
+      expect(room.modeVote!.votes.get("p1")).toBe(true); // 发起者自动赞成
+    });
+
+    it("startModeVote 重复投票被拒绝", () => {
+      room.startModeVote("p1", true);
+      const result = room.startModeVote("p2", true);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("已有投票");
+    });
+
+    it("startModeVote 游戏中不能投票", () => {
+      room.startPlaying();
+      const result = room.startModeVote("p1", true);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("游戏中");
+    });
+
+    it("startModeVote 投票切换到当前模式被拒绝", () => {
+      // room.wildcard 默认为 false, 投票 false 应被拒绝
+      const result = room.startModeVote("p1", false);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("当前已有模式");
+    });
+
+    it("startModeVote 在 Finished 状态下可以发起投票", () => {
+      room.startPlaying();
+      room.finishGame();
+      const result = room.startModeVote("p1", true);
+      expect(result.ok).toBe(true);
+    });
+
+    it("castModeVote 2人同意通过", () => {
+      room.startModeVote("p1", true); // p1 自动赞成
+      const result = room.castModeVote("p2", true);
+      expect(result.ok).toBe(true);
+      expect(result.result).toEqual({ passed: true, wildcard: true });
+    });
+
+    it("castModeVote 2人拒绝否决", () => {
+      room.startModeVote("p1", true); // p1 赞成
+      room.castModeVote("p2", false);
+      const result = room.castModeVote("p3", false);
+      expect(result.ok).toBe(true);
+      expect(result.result).toEqual({ passed: false, wildcard: true });
+    });
+
+    it("castModeVote 投票通过后 wildcard 状态更新", () => {
+      expect(room.wildcard).toBe(false);
+      room.startModeVote("p1", true);
+      room.castModeVote("p2", true);
+      expect(room.wildcard).toBe(true);
+      expect(room.modeVote).toBeNull(); // 投票结束后清除
+    });
+
+    it("castModeVote 不能重复投票", () => {
+      room.startModeVote("p1", true);
+      const result = room.castModeVote("p1", true); // p1 已经自动投过
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("重复投票");
+    });
+
+    it("castModeVote 没有进行中的投票时报错", () => {
+      const result = room.castModeVote("p1", true);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("没有进行中的投票");
+    });
   });
 });
 

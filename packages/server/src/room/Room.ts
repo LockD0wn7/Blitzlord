@@ -1,17 +1,33 @@
 import { RoomStatus } from "@blitzlord/shared";
 import type { RoomDetail, RoomInfo, RoomPlayer } from "@blitzlord/shared";
 
+export interface ModeVote {
+  wildcard: boolean;
+  initiator: string;
+  votes: Map<string, boolean>;
+}
+
 export class Room {
   readonly roomId: string;
   readonly roomName: string;
   private _status: RoomStatus = RoomStatus.Waiting;
   private _players: RoomPlayer[] = [];
   readonly maxPlayers: 3 = 3;
-  wildcard: boolean = false;
+  private _wildcard: boolean;
+  private _modeVote: ModeVote | null = null;
 
-  constructor(roomId: string, roomName: string) {
+  constructor(roomId: string, roomName: string, wildcard: boolean = false) {
     this.roomId = roomId;
     this.roomName = roomName;
+    this._wildcard = wildcard;
+  }
+
+  get wildcard(): boolean {
+    return this._wildcard;
+  }
+
+  get modeVote(): ModeVote | null {
+    return this._modeVote;
   }
 
   get status(): RoomStatus {
@@ -105,6 +121,68 @@ export class Room {
     this.resetReady();
   }
 
+  /** 发起模式投票 */
+  startModeVote(playerId: string, wildcard: boolean): { ok: boolean; error?: string } {
+    if (this._status === RoomStatus.Playing) {
+      return { ok: false, error: "游戏中不能发起投票" };
+    }
+    if (wildcard === this._wildcard) {
+      return { ok: false, error: "不能投票切换到当前已有模式" };
+    }
+    if (this._modeVote !== null) {
+      return { ok: false, error: "已有投票进行中" };
+    }
+    if (!this.getPlayer(playerId)) {
+      return { ok: false, error: "玩家不在房间中" };
+    }
+
+    const votes = new Map<string, boolean>();
+    votes.set(playerId, true); // 发起者自动投赞成票
+    this._modeVote = { wildcard, initiator: playerId, votes };
+    return { ok: true };
+  }
+
+  /** 投票 */
+  castModeVote(playerId: string, agree: boolean): { ok: boolean; error?: string; result?: { passed: boolean; wildcard: boolean } } {
+    if (this._modeVote === null) {
+      return { ok: false, error: "没有进行中的投票" };
+    }
+    if (this._modeVote.votes.has(playerId)) {
+      return { ok: false, error: "不能重复投票" };
+    }
+    if (!this.getPlayer(playerId)) {
+      return { ok: false, error: "玩家不在房间中" };
+    }
+
+    this._modeVote.votes.set(playerId, agree);
+
+    const totalPlayers = this._players.length;
+    const agreeCount = [...this._modeVote.votes.values()].filter((v) => v).length;
+    const disagreeCount = [...this._modeVote.votes.values()].filter((v) => !v).length;
+    const majority = Math.ceil(totalPlayers * 2 / 3);
+
+    // 检查是否达到多数或所有人都投完
+    if (agreeCount >= majority) {
+      const targetWildcard = this._modeVote.wildcard;
+      this._wildcard = targetWildcard;
+      this._modeVote = null;
+      return { ok: true, result: { passed: true, wildcard: targetWildcard } };
+    }
+    if (disagreeCount >= majority) {
+      const targetWildcard = this._modeVote.wildcard;
+      this._modeVote = null;
+      return { ok: true, result: { passed: false, wildcard: targetWildcard } };
+    }
+    if (this._modeVote.votes.size >= totalPlayers) {
+      // 所有人都投了但没达到多数 — 不通过
+      const targetWildcard = this._modeVote.wildcard;
+      this._modeVote = null;
+      return { ok: true, result: { passed: false, wildcard: targetWildcard } };
+    }
+
+    return { ok: true };
+  }
+
   /** 转为房间列表项 */
   toRoomInfo(): RoomInfo {
     return {
@@ -113,7 +191,7 @@ export class Room {
       status: this._status,
       playerCount: this._players.length,
       maxPlayers: 3,
-      wildcard: this.wildcard,
+      wildcard: this._wildcard,
     };
   }
 
@@ -125,7 +203,7 @@ export class Room {
       status: this._status,
       players: [...this.players],
       maxPlayers: 3,
-      wildcard: this.wildcard,
+      wildcard: this._wildcard,
     };
   }
 }

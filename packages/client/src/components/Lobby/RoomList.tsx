@@ -46,8 +46,13 @@ export default function RoomList({ rooms, onJoin }: RoomListProps) {
           className="flex items-center justify-between bg-surface/50 backdrop-blur-sm rounded-xl px-5 py-4 border border-surface-border/40 hover:border-surface-border/70 hover:bg-surface/70 transition-all duration-200"
         >
           <div className="flex-1 min-w-0">
-            <div className="text-warm font-medium truncate">
+            <div className="flex items-center gap-2 text-warm font-medium truncate">
               {room.roomName}
+              {room.wildcard && (
+                <span className="shrink-0 rounded bg-gold/20 px-1.5 py-0.5 text-xs font-semibold text-gold border border-gold/30">
+                  赖子
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-3 text-sm mt-1">
               <span className={statusColor(room.status)}>

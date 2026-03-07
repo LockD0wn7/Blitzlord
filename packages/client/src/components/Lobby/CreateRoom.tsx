@@ -1,18 +1,20 @@
 import { useState } from "react";
 
 interface CreateRoomProps {
-  onCreate: (roomName: string) => void;
+  onCreate: (roomName: string, wildcard?: boolean) => void;
 }
 
 export default function CreateRoom({ onCreate }: CreateRoomProps) {
   const [roomName, setRoomName] = useState("");
+  const [wildcard, setWildcard] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const handleCreate = () => {
     const trimmed = roomName.trim();
     if (!trimmed) return;
-    onCreate(trimmed);
+    onCreate(trimmed, wildcard);
     setRoomName("");
+    setWildcard(false);
     setIsOpen(false);
   };
 
@@ -57,12 +59,25 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
           onClick={() => {
             setIsOpen(false);
             setRoomName("");
+            setWildcard(false);
           }}
           className="btn-ghost px-4 py-2.5 rounded-xl"
         >
           取消
         </button>
       </div>
+      <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={wildcard}
+          onChange={(e) => setWildcard(e.target.checked)}
+          className="w-4 h-4 rounded border-surface-border/60 accent-gold"
+        />
+        <span className="text-sm text-warm-muted">赖子模式</span>
+        {wildcard && (
+          <span className="text-xs text-gold ml-1">随机指定一个点数为万能牌</span>
+        )}
+      </label>
     </div>
   );
 }

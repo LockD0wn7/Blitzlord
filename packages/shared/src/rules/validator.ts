@@ -1,4 +1,4 @@
-import type { Card, CardPlay } from "../types/card.js";
+import type { Card, CardPlay, Rank } from "../types/card.js";
 import { cardEquals } from "../utils/cardEquals.js";
 import { identifyCardType } from "./cardType.js";
 import { canBeat } from "./cardCompare.js";
@@ -20,6 +20,7 @@ export function validatePlay(
   cards: Card[],
   hand: Card[],
   previousPlay: CardPlay | null,
+  wildcardRank?: Rank | null,
 ): ValidateResult {
   if (cards.length === 0) {
     return { valid: false, error: "没有选择任何牌" };
@@ -36,7 +37,7 @@ export function validatePlay(
   }
 
   // 识别牌型
-  const play = identifyCardType(cards);
+  const play = identifyCardType(cards, wildcardRank);
   if (play === null) {
     return { valid: false, error: "无效的牌型" };
   }

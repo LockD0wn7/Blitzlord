@@ -1,9 +1,8 @@
 import { useCallback } from "react";
-import { getPlayableHints } from "@blitzlord/shared";
 import { useGameStore } from "../../store/useGameStore";
 import { useSocketStore } from "../../store/useSocketStore";
 import { getSocket } from "../../socket";
-import { buildHintContextKey, getNextHintSelection } from "./hintState";
+import { resolveHintAction } from "./hintAction";
 
 interface ActionBarProps {
   isMyTurn: boolean;
@@ -23,9 +22,6 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
   const clearSelection = useGameStore((s) => s.clearSelection);
   const setErrorMessage = useGameStore((s) => s.setErrorMessage);
 
-  const previousPlay =
-    lastPlay && lastPlay.playerId !== token ? lastPlay.play : null;
-
   const handlePlay = useCallback(() => {
     if (selectedCards.length === 0) return;
     const socket = getSocket();
@@ -40,33 +36,26 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
   }, [selectedCards, clearSelection, setErrorMessage]);
 
   const handleHint = useCallback(() => {
-    if (!isMyTurn) {
-      return;
-    }
-
-    const hints = getPlayableHints(myHand, previousPlay);
-    const contextKey = buildHintContextKey({
+    const result = resolveHintAction({
+      isMyTurn,
+      token,
       myHand,
-      previousPlay,
       currentTurn,
-    });
-    const nextSelection = getNextHintSelection({
-      hints,
-      contextKey,
+      lastPlay,
       hintContextKey,
       hintCursor,
     });
 
-    if (!nextSelection) {
-      setErrorMessage("没有可出的牌，请选择不出");
+    if (result.type === "noop") {
       return;
     }
 
-    applyHintSelection(
-      nextSelection.cards,
-      nextSelection.contextKey,
-      nextSelection.nextCursor,
-    );
+    if (result.type === "error") {
+      setErrorMessage(result.message);
+      return;
+    }
+
+    applyHintSelection(result.cards, result.contextKey, result.nextCursor);
     setErrorMessage(null);
   }, [
     applyHintSelection,
@@ -74,9 +63,10 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
     hintContextKey,
     hintCursor,
     isMyTurn,
+    lastPlay,
     myHand,
-    previousPlay,
     setErrorMessage,
+    token,
   ]);
 
   const handlePass = useCallback(() => {

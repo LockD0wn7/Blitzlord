@@ -120,4 +120,109 @@ describe("getPlayableHints", () => {
       { mainRank: Rank.Three, length: 6 },
     ]);
   });
+
+  it("可以枚举三带二", () => {
+    const result = getPlayableHints(
+      [
+        c(Rank.Three, Suit.Spade),
+        c(Rank.Three, Suit.Heart),
+        c(Rank.Three, Suit.Diamond),
+        c(Rank.Five, Suit.Spade),
+        c(Rank.Five, Suit.Heart),
+      ],
+      null,
+    ).filter((entry) => entry.type === CardType.TripleWithPair);
+
+    expect(
+      result.map((entry) => ({
+        type: entry.type,
+        mainRank: entry.mainRank,
+      })),
+    ).toEqual([{ type: CardType.TripleWithPair, mainRank: Rank.Three }]);
+  });
+
+  it("可以枚举飞机带单", () => {
+    const result = getPlayableHints(
+      [
+        c(Rank.Three, Suit.Spade),
+        c(Rank.Three, Suit.Heart),
+        c(Rank.Three, Suit.Diamond),
+        c(Rank.Four, Suit.Spade),
+        c(Rank.Four, Suit.Heart),
+        c(Rank.Four, Suit.Diamond),
+        c(Rank.Seven, Suit.Spade),
+        c(Rank.Eight, Suit.Spade),
+      ],
+      null,
+    ).filter((entry) => entry.type === CardType.TripleStraightWithOnes);
+
+    expect(
+      result.map((entry) => ({
+        type: entry.type,
+        mainRank: entry.mainRank,
+        length: entry.length,
+      })),
+    ).toEqual([
+      {
+        type: CardType.TripleStraightWithOnes,
+        mainRank: Rank.Three,
+        length: 2,
+      },
+    ]);
+  });
+
+  it("可以枚举飞机带对", () => {
+    const result = getPlayableHints(
+      [
+        c(Rank.Three, Suit.Spade),
+        c(Rank.Three, Suit.Heart),
+        c(Rank.Three, Suit.Diamond),
+        c(Rank.Four, Suit.Spade),
+        c(Rank.Four, Suit.Heart),
+        c(Rank.Four, Suit.Diamond),
+        c(Rank.Seven, Suit.Spade),
+        c(Rank.Seven, Suit.Heart),
+        c(Rank.Eight, Suit.Spade),
+        c(Rank.Eight, Suit.Heart),
+      ],
+      null,
+    ).filter((entry) => entry.type === CardType.TripleStraightWithPairs);
+
+    expect(
+      result.map((entry) => ({
+        type: entry.type,
+        mainRank: entry.mainRank,
+        length: entry.length,
+      })),
+    ).toEqual([
+      {
+        type: CardType.TripleStraightWithPairs,
+        mainRank: Rank.Three,
+        length: 2,
+      },
+    ]);
+  });
+
+  it("可以枚举四带两对", () => {
+    const result = getPlayableHints(
+      [
+        c(Rank.Five, Suit.Spade),
+        c(Rank.Five, Suit.Heart),
+        c(Rank.Five, Suit.Diamond),
+        c(Rank.Five, Suit.Club),
+        c(Rank.Seven, Suit.Spade),
+        c(Rank.Seven, Suit.Heart),
+        c(Rank.Eight, Suit.Spade),
+        c(Rank.Eight, Suit.Heart),
+      ],
+      null,
+    ).filter((entry) => entry.type === CardType.QuadWithTwoPairs);
+
+    expect(
+      result.map((entry) => ({
+        type: entry.type,
+        mainRank: entry.mainRank,
+      })),
+    ).toEqual([{ type: CardType.QuadWithTwoPairs, mainRank: Rank.Five }]);
+  });
 });

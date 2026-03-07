@@ -1,11 +1,11 @@
-import type { Card, CardPlay } from "./card.js";
+import type { Card, CardPlay, Rank } from "./card.js";
 import type { GamePhase, GameSnapshot, PlayerRole, ScoreDetail } from "./game.js";
 import type { RoomDetail, RoomInfo } from "./room.js";
 
 /** 客户端 → 服务端事件 */
 export interface ClientEvents {
   "room:create": (
-    data: { roomName: string; playerName: string },
+    data: { roomName: string; playerName: string; wildcard?: boolean },
     callback: (res: { ok: boolean; roomId?: string; error?: string }) => void,
   ) => void;
 
@@ -41,6 +41,16 @@ export interface ClientEvents {
   ) => void;
 
   "game:requestSync": () => void;
+
+  "room:voteMode": (
+    data: { wildcard: boolean },
+    cb: (res: { ok: boolean; error?: string }) => void,
+  ) => void;
+
+  "room:voteModeVote": (
+    data: { agree: boolean },
+    cb: (res: { ok: boolean; error?: string }) => void,
+  ) => void;
 }
 
 /** 服务端 → 客户端事件 */
@@ -65,6 +75,7 @@ export interface ServerEvents {
     landlordId: string;
     bottomCards: Card[];
     baseBid: 1 | 2 | 3;
+    wildcardRank: Rank | null;
   }) => void;
 
   "game:turnChanged": (data: {
@@ -93,6 +104,10 @@ export interface ServerEvents {
   "player:disconnected": (data: { playerId: string }) => void;
 
   "player:reconnected": (data: { playerId: string }) => void;
+
+  "room:voteModeStarted": (data: { initiator: string; wildcard: boolean }) => void;
+
+  "room:voteModeResult": (data: { passed: boolean; wildcard: boolean }) => void;
 
   error: (data: { message: string }) => void;
 }

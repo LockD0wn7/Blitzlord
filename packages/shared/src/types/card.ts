@@ -50,4 +50,6 @@ export interface CardPlay {
   cards: Card[];
   mainRank: Rank; // 主牌 rank（顺子取最小 rank，飞机取最小三张 rank）
   length?: number; // 顺子/连对/飞机的长度
+  softBomb?: boolean; // 软炸（赖子参与的炸弹）
+  pureWild?: boolean; // 纯赖子炸（4张赖子）
 }

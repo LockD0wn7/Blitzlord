@@ -35,6 +35,7 @@ describe("useGameStore tracker state", () => {
       rocketUsed: false,
       players: [],
       callSequence: [],
+      wildcardRank: null,
       tracker: {
         history: [
           {

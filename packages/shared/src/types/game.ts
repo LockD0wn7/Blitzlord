@@ -34,6 +34,7 @@ export interface GameState {
   rocketUsed: boolean;
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   redealCount: number;
+  wildcardRank: Rank | null;
 }
 
 export interface ScoreDetail {
@@ -87,4 +88,5 @@ export interface GameSnapshot {
   }[];
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   tracker: CardTrackerSnapshot;
+  wildcardRank: Rank | null;
 }

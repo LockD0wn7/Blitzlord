@@ -7,6 +7,7 @@ export class Room {
   private _status: RoomStatus = RoomStatus.Waiting;
   private _players: RoomPlayer[] = [];
   readonly maxPlayers: 3 = 3;
+  wildcard: boolean = false;
 
   constructor(roomId: string, roomName: string) {
     this.roomId = roomId;
@@ -112,6 +113,7 @@ export class Room {
       status: this._status,
       playerCount: this._players.length,
       maxPlayers: 3,
+      wildcard: this.wildcard,
     };
   }
 
@@ -123,6 +125,7 @@ export class Room {
       status: this._status,
       players: [...this.players],
       maxPlayers: 3,
+      wildcard: this.wildcard,
     };
   }
 }

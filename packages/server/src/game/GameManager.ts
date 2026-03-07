@@ -69,6 +69,7 @@ export class GameManager {
       rocketUsed: false,
       callSequence: [],
       redealCount: 0,
+      wildcardRank: null,
     };
 
     // 随机选择首个叫分者
@@ -546,6 +547,7 @@ export class GameManager {
         myHand: me ? [...me.hand] : [],
         history: this.trackerHistory,
       }),
+      wildcardRank: this.state.wildcardRank,
     };
   }
 }

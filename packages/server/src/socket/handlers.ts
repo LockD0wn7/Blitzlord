@@ -358,6 +358,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           landlordId: result.landlord.playerId,
           bottomCards: result.landlord.bottomCards,
           baseBid: result.landlord.baseBid,
+          wildcardRank: null,
         });
 
         // 给地主推送完整状态（含底牌后的新手牌）

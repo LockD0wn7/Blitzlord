@@ -18,6 +18,7 @@ export interface RoomInfo {
   status: RoomStatus;
   playerCount: number;
   maxPlayers: 3;
+  wildcard: boolean;
 }
 
 export interface RoomDetail {
@@ -26,4 +27,5 @@ export interface RoomDetail {
   status: RoomStatus;
   players: RoomPlayer[];
   maxPlayers: 3;
+  wildcard: boolean;
 }

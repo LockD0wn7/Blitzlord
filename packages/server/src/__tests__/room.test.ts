@@ -119,6 +119,7 @@ describe("Room", () => {
         status: "waiting",
         playerCount: 1,
         maxPlayers: 3,
+        wildcard: false,
       });
     });
 

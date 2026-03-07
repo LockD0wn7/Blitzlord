@@ -66,3 +66,10 @@ export const MIN_DOUBLE_STRAIGHT_LENGTH = 3;
 
 /** 飞机最少组数 */
 export const MIN_TRIPLE_STRAIGHT_LENGTH = 2;
+
+/** 赖子模式中可被选为赖子的 rank 范围（3~2，不含王） */
+export const WILDCARD_SEQUENCE_RANKS: readonly Rank[] = [
+  Rank.Three, Rank.Four, Rank.Five, Rank.Six, Rank.Seven,
+  Rank.Eight, Rank.Nine, Rank.Ten, Rank.Jack, Rank.Queen,
+  Rank.King, Rank.Ace, Rank.Two,
+] as const;

@@ -12,6 +12,7 @@ interface CardTrackerPanelProps {
   remainingByRank: TrackerRankStat[];
   history: TrackerHistoryEntry[];
   playerNames: Record<string, string>;
+  wildcardRank?: Rank | null;
 }
 
 const KEY_RANKS = new Set<Rank>([
@@ -60,6 +61,7 @@ export default function CardTrackerPanel({
   remainingByRank,
   history,
   playerNames,
+  wildcardRank = null,
 }: CardTrackerPanelProps) {
   if (!open) {
     return null;
@@ -111,10 +113,17 @@ export default function CardTrackerPanel({
                   KEY_RANKS.has(entry.rank)
                     ? " tracker-rank-card--key"
                     : ""
+                }${
+                  wildcardRank === entry.rank
+                    ? " ring-2 ring-yellow-400"
+                    : ""
                 }`}
               >
                 <div className="tracker-rank-card__label">
                   {RANK_LABELS[entry.rank]}
+                  {wildcardRank === entry.rank && (
+                    <span className="ml-1 text-yellow-400 text-[0.6rem]">赖</span>
+                  )}
                 </div>
                 <div className="tracker-rank-card__pips" aria-hidden="true">
                   {Array.from({ length: entry.totalCopies }, (_, index) => (

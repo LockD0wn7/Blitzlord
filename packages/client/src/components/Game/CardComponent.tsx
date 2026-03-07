@@ -6,6 +6,7 @@ interface CardComponentProps {
   selected?: boolean;
   onClick?: () => void;
   small?: boolean;
+  isWildcard?: boolean;
 }
 
 function getSuitColor(suit: Suit | null, rank: Rank): string {
@@ -20,6 +21,7 @@ export default function CardComponent({
   selected = false,
   onClick,
   small = false,
+  isWildcard = false,
 }: CardComponentProps) {
   const isJoker = card.rank === Rank.BlackJoker || card.rank === Rank.RedJoker;
   const color = getSuitColor(card.suit, card.rank);
@@ -38,6 +40,8 @@ export default function CardComponent({
         ${
           selected
             ? "-translate-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.25)] ring-2 ring-gold/80"
+            : isWildcard
+            ? "ring-2 ring-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.3)]"
             : "shadow-[0_2px_6px_rgba(0,0,0,0.15),_0_6px_16px_rgba(0,0,0,0.08)]"
         }
         ${
@@ -47,6 +51,11 @@ export default function CardComponent({
         }
       `}
     >
+      {isWildcard && (
+        <span className="absolute -top-1.5 -right-1.5 z-10 rounded-full bg-yellow-400 px-1 text-[0.5rem] font-bold leading-tight text-black">
+          赖
+        </span>
+      )}
       {isJoker ? (
         <div
           className={`flex flex-col items-center justify-center h-full ${color} font-bold`}

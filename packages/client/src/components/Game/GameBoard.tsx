@@ -10,6 +10,7 @@ import {
   CardType,
   RoomStatus,
   sortCards,
+  RANK_NAMES,
 } from "@blitzlord/shared";
 import type {
   Card,
@@ -51,6 +52,7 @@ export default function GameBoard() {
   const players = useGameStore((s) => s.players);
   const tracker = useGameStore((s) => s.tracker);
   const isTrackerOpen = useGameStore((s) => s.isTrackerOpen);
+  const wildcardRank = useGameStore((s) => s.wildcardRank);
   const gameResult = useGameStore((s) => s.gameResult);
   const errorMessage = useGameStore((s) => s.errorMessage);
   const setErrorMessage = useGameStore((s) => s.setErrorMessage);
@@ -331,6 +333,11 @@ export default function GameBoard() {
             <span className="font-medium text-orange-400">炸弹: {bombCount}</span>
           )}
           {rocketUsed && <span className="font-bold text-crimson">火箭!</span>}
+          {wildcardRank !== null && (
+            <span className="font-semibold text-yellow-400">
+              赖子: {RANK_NAMES[wildcardRank]}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -444,6 +451,7 @@ export default function GameBoard() {
         remainingByRank={tracker.remainingByRank}
         history={trackerHistory}
         playerNames={playerNames}
+        wildcardRank={wildcardRank}
       />
     </div>
   );

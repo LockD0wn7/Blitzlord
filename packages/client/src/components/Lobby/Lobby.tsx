@@ -82,11 +82,11 @@ export default function Lobby() {
   );
 
   const handleCreate = useCallback(
-    (roomName: string) => {
+    (roomName: string, wildcard?: boolean) => {
       const socket = getSocket();
       socket.emit(
         "room:create",
-        { roomName, playerName: playerName || "玩家" },
+        { roomName, playerName: playerName || "玩家", wildcard: wildcard ?? false },
         (res) => {
           if (res.ok && res.roomId) {
             navigate(`/room/${res.roomId}`);

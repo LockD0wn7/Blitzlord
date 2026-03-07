@@ -10,7 +10,7 @@ import type { RoomDetail } from "@blitzlord/shared";
 export default function RoomView() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { currentRoom, setCurrentRoom } = useRoomStore();
+  const { currentRoom, setCurrentRoom, setModeVote, clearModeVote } = useRoomStore();
   const { playerName } = useSocketStore();
   const token = useSocketStore((s) => s.token);
   const {
@@ -38,7 +38,18 @@ export default function RoomView() {
       setCurrentRoom(room);
     };
 
+    const onVoteModeStarted = (data: { initiator: string; wildcard: boolean }) => {
+      setModeVote(data);
+    };
+
+    const onVoteModeResult = (data: { passed: boolean; wildcard: boolean }) => {
+      clearModeVote();
+      // Room detail will be updated via room:updated if the vote passed
+    };
+
     socket.on("room:updated", onRoomUpdated);
+    socket.on("room:voteModeStarted", onVoteModeStarted);
+    socket.on("room:voteModeResult", onVoteModeResult);
 
     const requestRoomSync = () => {
       socket.emit("room:requestSync", (res) => {
@@ -87,8 +98,10 @@ export default function RoomView() {
     return () => {
       disposed = true;
       socket.off("room:updated", onRoomUpdated);
+      socket.off("room:voteModeStarted", onVoteModeStarted);
+      socket.off("room:voteModeResult", onVoteModeResult);
     };
-  }, [roomId, setCurrentRoom, playerName, navigate]);
+  }, [roomId, setCurrentRoom, setModeVote, clearModeVote, playerName, navigate]);
 
   // 监听 game:started
   useEffect(() => {

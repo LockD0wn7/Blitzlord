@@ -128,6 +128,7 @@ export default function GameBoard() {
       landlordId: string;
       bottomCards: Card[];
       baseBid: 1 | 2 | 3;
+      wildcardRank: import("@blitzlord/shared").Rank | null;
     }) => {
       const store = useGameStore.getState();
       const trackerState = buildTrackerStateForLandlordDecision({
@@ -140,6 +141,7 @@ export default function GameBoard() {
 
       store.setBottomCards(data.bottomCards);
       store.setBaseBid(data.baseBid);
+      store.setWildcardRank(data.wildcardRank ?? null);
       store.setPhase(GamePhase.Playing);
       store.setPlayers(
         store.players.map((player) => ({

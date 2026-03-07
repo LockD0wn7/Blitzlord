@@ -61,3 +61,17 @@ export function connectSocket(): void {
 export function disconnectSocket(): void {
   socket?.disconnect();
 }
+
+export function emitVoteMode(
+  wildcard: boolean,
+  cb: (res: { ok: boolean; error?: string }) => void,
+): void {
+  getSocket().emit("room:voteMode", { wildcard }, cb);
+}
+
+export function emitVoteModeVote(
+  agree: boolean,
+  cb: (res: { ok: boolean; error?: string }) => void,
+): void {
+  getSocket().emit("room:voteModeVote", { agree }, cb);
+}

@@ -5,6 +5,7 @@ import type {
   CardPlay,
   GameSnapshot,
   PlayerRole,
+  Rank,
   ScoreDetail,
 } from "@blitzlord/shared";
 import { GamePhase, cardEquals } from "@blitzlord/shared";
@@ -31,6 +32,7 @@ interface GameState {
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   tracker: CardTrackerSnapshot;
   isTrackerOpen: boolean;
+  wildcardRank: Rank | null;
   selectedCards: Card[];
   hintContextKey: string | null;
   hintCursor: number;
@@ -71,6 +73,7 @@ interface GameState {
   resetHintCycle: () => void;
   removeCardsFromHand: (cards: Card[]) => void;
   setGameResult: (result: GameState["gameResult"]) => void;
+  setWildcardRank: (rank: Rank | null) => void;
   setErrorMessage: (msg: string | null) => void;
   resetGame: () => void;
   updatePlayerCardCount: (playerId: string, count: number) => void;
@@ -94,6 +97,7 @@ const initialState = {
     remainingByRank: [],
   } as CardTrackerSnapshot,
   isTrackerOpen: false,
+  wildcardRank: null as Rank | null,
   selectedCards: [] as Card[],
   hintContextKey: null as string | null,
   hintCursor: 0,
@@ -118,6 +122,7 @@ export const useGameStore = create<GameState>((set) => ({
       players: snapshot.players,
       callSequence: snapshot.callSequence,
       tracker: snapshot.tracker,
+      wildcardRank: snapshot.wildcardRank ?? null,
       selectedCards: [],
       hintContextKey: null,
       hintCursor: 0,
@@ -220,6 +225,7 @@ export const useGameStore = create<GameState>((set) => ({
       };
     }),
 
+  setWildcardRank: (rank) => set({ wildcardRank: rank }),
   setGameResult: (result) => set({ gameResult: result }),
   setErrorMessage: (msg) => set({ errorMessage: msg }),
 

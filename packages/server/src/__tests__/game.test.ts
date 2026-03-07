@@ -599,4 +599,125 @@ describe("GameManager", () => {
       expect(p1.isOnline).toBe(false);
     });
   });
+
+  describe("赖子模式", () => {
+    function createWildcardGame(): GameManager {
+      return new GameManager("room-1", PLAYERS, true);
+    }
+
+    function decideLandlordForGame(gm: GameManager): string {
+      const caller = gm.currentCallerId!;
+      gm.callBid(caller, 3);
+      return caller;
+    }
+
+    it("wildcard=true: decideLandlord 后 wildcardRank 不为 null", () => {
+      const gm = createWildcardGame();
+      const caller = gm.currentCallerId!;
+      const result = gm.callBid(caller, 3);
+      expect(result.ok).toBe(true);
+      expect(result.landlord).toBeTruthy();
+      expect(result.landlord!.wildcardRank).not.toBeNull();
+      // wildcardRank 应在合法范围内 (3-15)
+      expect(result.landlord!.wildcardRank).toBeGreaterThanOrEqual(Rank.Three);
+      expect(result.landlord!.wildcardRank).toBeLessThanOrEqual(Rank.Two);
+    });
+
+    it("wildcard=false: wildcardRank 始终为 null", () => {
+      const gm = createGame(); // 默认 wildcard=false
+      const caller = gm.currentCallerId!;
+      const result = gm.callBid(caller, 3);
+      expect(result.ok).toBe(true);
+      expect(result.landlord!.wildcardRank).toBeNull();
+    });
+
+    it("getFullState 包含 wildcardRank", () => {
+      const gm = createWildcardGame();
+      const caller = decideLandlordForGame(gm);
+      const snapshot = gm.getFullState(caller);
+      expect(snapshot.wildcardRank).not.toBeNull();
+      expect(snapshot.wildcardRank).toBeGreaterThanOrEqual(Rank.Three);
+      expect(snapshot.wildcardRank).toBeLessThanOrEqual(Rank.Two);
+    });
+
+    it("wildcard=false 时 getFullState.wildcardRank 为 null", () => {
+      const gm = createGame();
+      const caller = gm.currentCallerId!;
+      gm.callBid(caller, 3);
+      const snapshot = gm.getFullState(caller);
+      expect(snapshot.wildcardRank).toBeNull();
+    });
+
+    it("赖子模式下出牌验证使用 wildcardRank", () => {
+      // 多次尝试（随机发牌）找到一个赖子在手牌中的局
+      let validated = false;
+      for (let attempt = 0; attempt < 50 && !validated; attempt++) {
+        const gm = createWildcardGame();
+        const caller = gm.currentCallerId!;
+        const bidResult = gm.callBid(caller, 3);
+        const wildcardRank = bidResult.landlord!.wildcardRank!;
+
+        const hand = gm.getPlayerHand(caller);
+        // 找到手牌中的赖子牌（rank 等于 wildcardRank 的牌）
+        const wildCards = hand.filter((c) => c.rank === wildcardRank);
+        if (wildCards.length >= 1) {
+          // 用一张赖子出牌（应被视为单张，且合法）
+          const result = gm.playCards(caller, [wildCards[0]]);
+          expect(result.ok).toBe(true);
+          validated = true;
+        }
+      }
+      // 50 次尝试后至少有一次应成功（概率极高）
+      expect(validated).toBe(true);
+    });
+
+    it("赖子模式下软炸应增加 bombCount", () => {
+      // 通过多次尝试找到赖子能组成软炸的情况
+      let bombCounted = false;
+      for (let attempt = 0; attempt < 100 && !bombCounted; attempt++) {
+        const gm = createWildcardGame();
+        const caller = gm.currentCallerId!;
+        const bidResult = gm.callBid(caller, 3);
+        const wildcardRank = bidResult.landlord!.wildcardRank!;
+
+        const hand = gm.getPlayerHand(caller);
+        // 找 wildcardRank 的赖子牌
+        const wildCards = hand.filter((c) => c.rank === wildcardRank);
+        if (wildCards.length === 0) continue;
+
+        // 找某个 rank（非赖子 rank）有 3 张自然牌的情况，加 1 赖子组成软炸
+        const rankCounts = new Map<Rank, Card[]>();
+        for (const c of hand) {
+          if (c.rank === wildcardRank) continue;
+          if (c.rank === Rank.BlackJoker || c.rank === Rank.RedJoker) continue;
+          const arr = rankCounts.get(c.rank) ?? [];
+          arr.push(c);
+          rankCounts.set(c.rank, arr);
+        }
+
+        for (const [, cards] of rankCounts) {
+          if (cards.length === 3 && wildCards.length >= 1) {
+            const softBombCards = [...cards, wildCards[0]];
+            const result = gm.playCards(caller, softBombCards);
+            if (result.ok && result.play?.type === CardType.Bomb) {
+              const snap = gm.getFullState(caller);
+              expect(snap.bombCount).toBe(1);
+              bombCounted = true;
+              break;
+            }
+          }
+        }
+      }
+      // 100 次尝试后至少有一次应成功
+      expect(bombCounted).toBe(true);
+    });
+
+    it("非赖子模式构造函数默认 wildcard=false", () => {
+      const gm = new GameManager("room-1", PLAYERS);
+      const caller = gm.currentCallerId!;
+      gm.callBid(caller, 3);
+      const snapshot = gm.getFullState(caller);
+      expect(snapshot.wildcardRank).toBeNull();
+    });
+  });
 });

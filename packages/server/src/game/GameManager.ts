@@ -7,6 +7,7 @@ import {
   type GameState,
   PlayerRole,
   type PlayerState,
+  Rank,
   type ScoreDetail,
   type TrackerHistoryEntry,
   buildCardTrackerSnapshot,
@@ -38,17 +39,19 @@ export class GameManager {
   private trackerHistory: TrackerHistoryEntry[] = [];
   private trackerSequence = 0;
   private trackerRound = 1;
+  private wildcard: boolean;
 
   /** 叫分轮转顺序中，当前应该叫分的玩家索引 */
   private callerIndex: number;
   /** 叫分起始玩家索引 */
   private firstCallerIndex: number;
 
-  constructor(roomId: string, players: GamePlayer[]) {
+  constructor(roomId: string, players: GamePlayer[], wildcard: boolean = false) {
     if (players.length !== 3) {
       throw new Error("斗地主必须 3 个玩家");
     }
     this.players = players;
+    this.wildcard = wildcard;
     this.state = {
       roomId,
       phase: GamePhase.Dealing,
@@ -187,7 +190,7 @@ export class GameManager {
     ok: boolean;
     error?: string;
     nextCaller?: string | null;
-    landlord?: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3 } | null;
+    landlord?: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3; wildcardRank: Rank | null } | null;
     redeal?: boolean;
   } {
     if (this.state.phase !== GamePhase.Calling) {
@@ -234,7 +237,7 @@ export class GameManager {
   private finishCallingRound(): {
     ok: boolean;
     nextCaller?: string | null;
-    landlord?: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3 } | null;
+    landlord?: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3; wildcardRank: Rank | null } | null;
     redeal?: boolean;
   } {
     const maxBid = this.getCurrentMaxBid();
@@ -277,11 +280,21 @@ export class GameManager {
   private decideLandlord(
     landlordId: string,
     baseBid: 1 | 2 | 3,
-  ): { landlord: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3 } } {
+  ): { landlord: { playerId: string; bottomCards: Card[]; baseBid: 1 | 2 | 3; wildcardRank: Rank | null } } {
     this.state.baseBid = baseBid;
 
     for (const p of this.state.players) {
       p.role = p.playerId === landlordId ? PlayerRole.Landlord : PlayerRole.Peasant;
+    }
+
+    // 赖子模式：随机选择赖子 rank
+    if (this.wildcard) {
+      const normalRanks = [
+        Rank.Three, Rank.Four, Rank.Five, Rank.Six, Rank.Seven,
+        Rank.Eight, Rank.Nine, Rank.Ten, Rank.Jack, Rank.Queen,
+        Rank.King, Rank.Ace, Rank.Two,
+      ];
+      this.state.wildcardRank = normalRanks[Math.floor(Math.random() * normalRanks.length)];
     }
 
     // 地主拿底牌
@@ -297,6 +310,7 @@ export class GameManager {
         playerId: landlordId,
         bottomCards: [...this.state.bottomCards],
         baseBid,
+        wildcardRank: this.state.wildcardRank,
       },
     };
   }
@@ -327,7 +341,7 @@ export class GameManager {
     const playerState = this.getPlayerState(playerId)!;
     const previousPlay = this.state.lastPlay?.play ?? null;
 
-    const result = validatePlay(cards, playerState.hand, previousPlay);
+    const result = validatePlay(cards, playerState.hand, previousPlay, this.state.wildcardRank);
     if (!result.valid || !result.play) {
       return { ok: false, error: result.error ?? "无效出牌" };
     }

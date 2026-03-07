@@ -32,6 +32,8 @@ interface GameState {
   tracker: CardTrackerSnapshot;
   isTrackerOpen: boolean;
   selectedCards: Card[];
+  hintContextKey: string | null;
+  hintCursor: number;
   gameResult: {
     winnerId: string;
     winnerRole: PlayerRole;
@@ -61,6 +63,12 @@ interface GameState {
   toggleTrackerPanel: () => void;
   toggleCardSelection: (card: Card) => void;
   clearSelection: () => void;
+  applyHintSelection: (
+    cards: Card[],
+    contextKey: string,
+    nextCursor: number,
+  ) => void;
+  resetHintCycle: () => void;
   removeCardsFromHand: (cards: Card[]) => void;
   setGameResult: (result: GameState["gameResult"]) => void;
   setErrorMessage: (msg: string | null) => void;
@@ -87,6 +95,8 @@ const initialState = {
   } as CardTrackerSnapshot,
   isTrackerOpen: false,
   selectedCards: [] as Card[],
+  hintContextKey: null as string | null,
+  hintCursor: 0,
   gameResult: null as GameState["gameResult"],
   errorMessage: null as string | null,
 };
@@ -109,14 +119,31 @@ export const useGameStore = create<GameState>((set) => ({
       callSequence: snapshot.callSequence,
       tracker: snapshot.tracker,
       selectedCards: [],
+      hintContextKey: null,
+      hintCursor: 0,
       gameResult: null,
       errorMessage: null,
     }),
 
-  setHand: (hand) => set({ myHand: hand }),
+  setHand: (hand) =>
+    set({
+      myHand: hand,
+      hintContextKey: null,
+      hintCursor: 0,
+    }),
   setPhase: (phase) => set({ phase }),
-  setCurrentTurn: (turn) => set({ currentTurn: turn }),
-  setLastPlay: (play) => set({ lastPlay: play }),
+  setCurrentTurn: (turn) =>
+    set({
+      currentTurn: turn,
+      hintContextKey: null,
+      hintCursor: 0,
+    }),
+  setLastPlay: (play) =>
+    set({
+      lastPlay: play,
+      hintContextKey: null,
+      hintCursor: 0,
+    }),
   setBottomCards: (cards) => set({ bottomCards: cards }),
   setBaseBid: (bid) => set({ baseBid: bid }),
   setMyRole: (role) => set({ myRole: role }),
@@ -167,12 +194,30 @@ export const useGameStore = create<GameState>((set) => ({
 
   clearSelection: () => set({ selectedCards: [] }),
 
+  applyHintSelection: (cards, contextKey, nextCursor) =>
+    set({
+      selectedCards: cards,
+      hintContextKey: contextKey,
+      hintCursor: nextCursor,
+    }),
+
+  resetHintCycle: () =>
+    set({
+      hintContextKey: null,
+      hintCursor: 0,
+    }),
+
   removeCardsFromHand: (cards) =>
     set((state) => {
       const remaining = state.myHand.filter(
         (handCard) => !cards.some((c) => cardEquals(c, handCard))
       );
-      return { myHand: remaining, selectedCards: [] };
+      return {
+        myHand: remaining,
+        selectedCards: [],
+        hintContextKey: null,
+        hintCursor: 0,
+      };
     }),
 
   setGameResult: (result) => set({ gameResult: result }),

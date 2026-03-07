@@ -113,4 +113,44 @@ describe("useGameStore tracker state", () => {
     ]);
     expect(useGameStore.getState().tracker.remainingByRank).toEqual([aceStat]);
   });
+
+  it("applies hint selection and stores hint cursor state", () => {
+    const store = useGameStore.getState();
+
+    store.applyHintSelection(
+      [{ rank: Rank.King, suit: Suit.Spade }],
+      "ctx-1",
+      2,
+    );
+
+    expect(useGameStore.getState().selectedCards).toEqual([
+      { rank: Rank.King, suit: Suit.Spade },
+    ]);
+    expect(useGameStore.getState().hintContextKey).toBe("ctx-1");
+    expect(useGameStore.getState().hintCursor).toBe(2);
+  });
+
+  it("resets hint cycle when turn changes or hand changes", () => {
+    const store = useGameStore.getState();
+
+    store.applyHintSelection(
+      [{ rank: Rank.King, suit: Suit.Spade }],
+      "ctx-1",
+      2,
+    );
+    store.setCurrentTurn("p2");
+
+    expect(useGameStore.getState().hintContextKey).toBeNull();
+    expect(useGameStore.getState().hintCursor).toBe(0);
+
+    store.applyHintSelection(
+      [{ rank: Rank.Queen, suit: Suit.Heart }],
+      "ctx-2",
+      1,
+    );
+    store.setHand([{ rank: Rank.Ace, suit: Suit.Spade }]);
+
+    expect(useGameStore.getState().hintContextKey).toBeNull();
+    expect(useGameStore.getState().hintCursor).toBe(0);
+  });
 });

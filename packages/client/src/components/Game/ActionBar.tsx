@@ -18,6 +18,7 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
   const selectedCards = useGameStore((s) => s.selectedCards);
   const hintContextKey = useGameStore((s) => s.hintContextKey);
   const hintCursor = useGameStore((s) => s.hintCursor);
+  const wildcardRank = useGameStore((s) => s.wildcardRank);
   const applyHintSelection = useGameStore((s) => s.applyHintSelection);
   const clearSelection = useGameStore((s) => s.clearSelection);
   const setErrorMessage = useGameStore((s) => s.setErrorMessage);
@@ -44,6 +45,7 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
       lastPlay,
       hintContextKey,
       hintCursor,
+      wildcardRank,
     });
 
     if (result.type === "noop") {
@@ -67,6 +69,7 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
     myHand,
     setErrorMessage,
     token,
+    wildcardRank,
   ]);
 
   const handlePass = useCallback(() => {

@@ -1,4 +1,4 @@
-import { getPlayableHints, type Card, type CardPlay } from "@blitzlord/shared";
+import { getPlayableHints, type Card, type CardPlay, type Rank } from "@blitzlord/shared";
 import { buildHintContextKey, getNextHintSelection } from "./hintState";
 
 interface ResolveHintActionParams {
@@ -9,6 +9,7 @@ interface ResolveHintActionParams {
   lastPlay: { playerId: string; play: CardPlay } | null;
   hintContextKey: string | null;
   hintCursor: number;
+  wildcardRank?: Rank | null;
 }
 
 type HintActionResult =
@@ -32,11 +33,12 @@ export function resolveHintAction(
     params.lastPlay && params.lastPlay.playerId !== params.token
       ? params.lastPlay.play
       : null;
-  const hints = getPlayableHints(params.myHand, previousPlay);
+  const hints = getPlayableHints(params.myHand, previousPlay, params.wildcardRank);
   const contextKey = buildHintContextKey({
     myHand: params.myHand,
     previousPlay,
     currentTurn: params.currentTurn,
+    wildcardRank: params.wildcardRank,
   });
   const nextSelection = getNextHintSelection({
     hints,

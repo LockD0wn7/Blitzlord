@@ -1,9 +1,10 @@
-import type { Card, CardPlay } from "@blitzlord/shared";
+import type { Card, CardPlay, Rank } from "@blitzlord/shared";
 
 interface BuildHintContextKeyParams {
   myHand: Card[];
   previousPlay: CardPlay | null;
   currentTurn: string | null;
+  wildcardRank?: Rank | null;
 }
 
 interface GetNextHintSelectionParams {
@@ -41,6 +42,7 @@ export function buildHintContextKey(
     params.currentTurn ?? "none",
     serializeCards(params.myHand),
     previousPlay,
+    params.wildcardRank ?? "noWild",
   ].join("::");
 }
 

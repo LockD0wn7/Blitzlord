@@ -6,10 +6,43 @@ type TypedSocket = Socket<ServerEvents, ClientEvents>;
 // 默认通过 Vite 代理（同源），也可通过环境变量直连服务端
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
 
+function createFallbackPlayerId(): string {
+  const bytes = new Uint8Array(16);
+  const webCrypto = globalThis.crypto;
+
+  if (webCrypto?.getRandomValues) {
+    webCrypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return [
+    hex.slice(0, 4).join(""),
+    hex.slice(4, 6).join(""),
+    hex.slice(6, 8).join(""),
+    hex.slice(8, 10).join(""),
+    hex.slice(10, 16).join(""),
+  ].join("-");
+}
+
+function createPlayerId(): string {
+  const webCrypto = globalThis.crypto;
+  if (webCrypto?.randomUUID) {
+    return webCrypto.randomUUID();
+  }
+  return createFallbackPlayerId();
+}
+
 function getToken(): string {
   let token = localStorage.getItem("playerId");
   if (!token) {
-    token = crypto.randomUUID();
+    token = createPlayerId();
     localStorage.setItem("playerId", token);
   }
   return token;

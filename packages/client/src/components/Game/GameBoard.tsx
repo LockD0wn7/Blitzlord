@@ -419,6 +419,7 @@ export default function GameBoard() {
             lastPlay={lastPlay}
             lastPassPlayerId={lastPassPlayerId}
             playerNames={playerNames}
+            wildcardRank={wildcardRank}
           />
         ) : (
           <div className="text-lg text-muted font-cn">等待游戏开始...</div>

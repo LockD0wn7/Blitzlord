@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { Rank } from "@blitzlord/shared";
+import { getDisplayCardsForCards, Rank } from "@blitzlord/shared";
 import type {
   TrackerHistoryEntry,
   TrackerRankStat,
@@ -191,7 +191,7 @@ export default function CardTrackerPanel({
 
                     {entry.action === "play" && entry.cards.length > 0 ? (
                       <div className="tracker-history__cards">
-                        {entry.cards.map((card, cardIndex) => (
+                        {getDisplayCardsForCards(entry.cards, wildcardRank).map((card, cardIndex) => (
                           <div
                             key={`${entry.sequence}-${card.rank}-${card.suit}-${cardIndex}`}
                             className="tracker-history__card"

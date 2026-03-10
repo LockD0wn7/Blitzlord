@@ -1,4 +1,5 @@
 export { identifyCardType } from "./cardType.js";
+export { getDisplayCardsForCards, getDisplayCardsForPlay } from "./display.js";
 export { canBeat } from "./cardCompare.js";
 export { getPlayableHints } from "./hint.js";
 export { validatePlay } from "./validator.js";

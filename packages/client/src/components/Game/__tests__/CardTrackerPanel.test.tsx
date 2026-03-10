@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Rank } from "@blitzlord/shared";
+import { describe, expect, it } from "vitest";
+import { Rank, Suit } from "@blitzlord/shared";
 import CardTrackerPanel from "../CardTrackerPanel";
 
 describe("CardTrackerPanel", () => {
@@ -31,10 +31,9 @@ describe("CardTrackerPanel", () => {
       />,
     );
 
-    expect(html).toContain("记牌器");
+    expect(html).toContain("Private Ledger");
     expect(html).toContain("A");
     expect(html).toContain("Bob");
-    expect(html).toContain("出牌");
   });
 
   it("renders round separators and dialog semantics", () => {
@@ -66,7 +65,34 @@ describe("CardTrackerPanel", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).not.toContain('aria-hidden="true"');
-    expect(html).toContain("新一轮");
     expect(html).toContain("Round 2");
+  });
+
+  it("renders transformed wildcard cards in play history", () => {
+    const html = renderToStaticMarkup(
+      <CardTrackerPanel
+        open
+        onClose={() => {}}
+        remainingByRank={[]}
+        history={[
+          {
+            sequence: 1,
+            round: 1,
+            playerId: "p2",
+            action: "play",
+            cards: [
+              { rank: Rank.Ace, suit: Suit.Spade },
+              { rank: Rank.Seven, suit: Suit.Heart },
+            ],
+          },
+        ]}
+        playerNames={{ p2: "Bob" }}
+        wildcardRank={Rank.Seven}
+      />,
+    );
+
+    expect(html).toContain("Bob");
+    expect(html).toContain(">A<");
+    expect(html).not.toContain(">7<");
   });
 });

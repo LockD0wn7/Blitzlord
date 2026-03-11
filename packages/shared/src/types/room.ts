@@ -18,7 +18,11 @@ export interface RoomInfo {
   status: RoomStatus;
   playerCount: number;
   maxPlayers: 3;
-  wildcard: boolean;
+  gameId: string;
+  gameName: string;
+  modeId: string;
+  modeName: string;
+  configSummary?: Record<string, unknown>;
 }
 
 export interface RoomDetail {
@@ -27,5 +31,9 @@ export interface RoomDetail {
   status: RoomStatus;
   players: RoomPlayer[];
   maxPlayers: 3;
-  wildcard: boolean;
+  gameId: string;
+  gameName: string;
+  modeId: string;
+  modeName: string;
+  configSummary?: Record<string, unknown>;
 }

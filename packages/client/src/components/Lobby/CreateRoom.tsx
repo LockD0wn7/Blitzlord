@@ -1,25 +1,43 @@
 import { useState } from "react";
 
-interface CreateRoomProps {
-  onCreate: (roomName: string, wildcard?: boolean) => void;
+interface CreateRoomSelection {
+  gameId: string;
+  modeId: string;
+  config?: Record<string, unknown>;
 }
+
+interface CreateRoomProps {
+  onCreate: (roomName: string, selection: CreateRoomSelection) => void;
+}
+
+const MODE_OPTIONS = [
+  { modeId: "classic", label: "经典模式", description: "标准斗地主规则" },
+  { modeId: "wildcard", label: "赖子模式", description: "随机指定点数作为赖子" },
+];
 
 export default function CreateRoom({ onCreate }: CreateRoomProps) {
   const [roomName, setRoomName] = useState("");
-  const [wildcard, setWildcard] = useState(false);
+  const [modeId, setModeId] = useState("classic");
   const [isOpen, setIsOpen] = useState(false);
 
   const handleCreate = () => {
     const trimmed = roomName.trim();
-    if (!trimmed) return;
-    onCreate(trimmed, wildcard);
+    if (!trimmed) {
+      return;
+    }
+
+    onCreate(trimmed, {
+      gameId: "doudizhu",
+      modeId,
+    });
+
     setRoomName("");
-    setWildcard(false);
+    setModeId("classic");
     setIsOpen(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter") {
       handleCreate();
     }
   };
@@ -41,7 +59,7 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
         <input
           type="text"
           value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
+          onChange={(event) => setRoomName(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="输入房间名称"
           maxLength={20}
@@ -59,25 +77,37 @@ export default function CreateRoom({ onCreate }: CreateRoomProps) {
           onClick={() => {
             setIsOpen(false);
             setRoomName("");
-            setWildcard(false);
+            setModeId("classic");
           }}
           className="btn-ghost px-4 py-2.5 rounded-xl"
         >
           取消
         </button>
       </div>
-      <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={wildcard}
-          onChange={(e) => setWildcard(e.target.checked)}
-          className="w-4 h-4 rounded border-surface-border/60 accent-gold"
-        />
-        <span className="text-sm text-warm-muted">赖子模式</span>
-        {wildcard && (
-          <span className="text-xs text-gold ml-1">随机指定一个点数为万能牌</span>
-        )}
-      </label>
+
+      <div className="mt-4">
+        <div className="mb-2 text-sm text-warm-muted">游戏模式</div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {MODE_OPTIONS.map((option) => {
+            const selected = option.modeId === modeId;
+            return (
+              <button
+                key={option.modeId}
+                type="button"
+                onClick={() => setModeId(option.modeId)}
+                className={`rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
+                  selected
+                    ? "border-gold/60 bg-gold/10 shadow-[0_0_20px_rgba(201,165,78,0.08)]"
+                    : "border-surface-border/50 bg-base-light/30 hover:border-surface-border/80"
+                }`}
+              >
+                <div className="font-medium text-warm">{option.label}</div>
+                <div className="mt-1 text-xs text-muted">{option.description}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

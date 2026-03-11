@@ -118,4 +118,15 @@ describe("socket token generation", () => {
     });
     expect(ioMock).toHaveBeenCalledTimes(1);
   });
+
+  it("emits match actions through the unified match:action event", async () => {
+    const { emitMatchAction, getSocket } = await import("./index");
+
+    const socket = getSocket() as unknown as MockSocket;
+    const callback = vi.fn();
+
+    emitMatchAction({ type: "pass" }, callback);
+
+    expect(socket.emit).toHaveBeenCalledWith("match:action", { type: "pass" }, callback);
+  });
 });

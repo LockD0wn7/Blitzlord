@@ -1,14 +1,14 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useGameStore } from "../../store/useGameStore";
+import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
 import { useRoomStore } from "../../store/useRoomStore";
 import { PlayerRole } from "@blitzlord/shared";
 
 export default function ScoreBoard() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const gameResult = useGameStore((s) => s.gameResult);
-  const players = useGameStore((s) => s.players);
-  const resetGame = useGameStore((s) => s.resetGame);
+  const gameResult = useDoudizhuGameStore((s) => s.gameResult);
+  const players = useDoudizhuGameStore((s) => s.players);
+  const resetGame = useDoudizhuGameStore((s) => s.resetGame);
   const setCurrentRoom = useRoomStore((s) => s.setCurrentRoom);
 
   if (!gameResult) return null;

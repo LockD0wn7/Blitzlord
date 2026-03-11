@@ -15,4 +15,4 @@ export type {
 export { RoomStatus } from "./room.js";
 export type { RoomPlayer, RoomInfo, RoomDetail } from "./room.js";
 
-export type { ClientEvents, ServerEvents } from "./events.js";
+export type { ClientEvents, MatchActionData, ServerEvents } from "./events.js";

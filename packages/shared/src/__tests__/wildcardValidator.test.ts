@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validatePlay } from "../rules/validator.js";
+import { validatePlay } from "../games/doudizhu/index.js";
 import { CardType, Rank, Suit } from "../types/card.js";
 import type { Card, CardPlay } from "../types/card.js";
 

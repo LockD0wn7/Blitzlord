@@ -3,7 +3,8 @@ import { Server } from "socket.io";
 import type { ClientEvents, ServerEvents } from "@blitzlord/shared";
 import { SessionManager } from "./session/SessionManager.js";
 import { RoomManager } from "./room/RoomManager.js";
-import { GameManager } from "./game/GameManager.js";
+import { createServerGameRegistry } from "./platform/GameRegistry.js";
+import { MatchEngine } from "./platform/MatchEngine.js";
 import { createHandlers } from "./socket/handlers.js";
 
 const httpServer = createServer();
@@ -14,9 +15,16 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
 
 const sessionManager = new SessionManager();
 const roomManager = new RoomManager();
-const games = new Map<string, GameManager>();
+const gameRegistry = createServerGameRegistry();
+const matches = new Map<string, MatchEngine>();
 
-io.on("connection", createHandlers({ io, roomManager, sessionManager, games }));
+io.on("connection", createHandlers({
+  io,
+  roomManager,
+  sessionManager,
+  gameRegistry,
+  matches,
+}));
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 httpServer.listen(PORT, () => {

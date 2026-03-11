@@ -2,7 +2,7 @@ import { createHashRouter, Navigate } from "react-router-dom";
 import Login from "../components/Login";
 import Lobby from "../components/Lobby/Lobby";
 import RoomView from "../components/Room/RoomView";
-import GameBoard from "../components/Game/GameBoard";
+import GameShell from "../platform/GameShell";
 
 /** 路由守卫：未设置昵称时重定向到登录页 */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -28,6 +28,6 @@ export const router = createHashRouter([
   },
   {
     path: "/game/:roomId",
-    element: <RequireAuth><GameBoard /></RequireAuth>,
+    element: <RequireAuth><GameShell /></RequireAuth>,
   },
 ]);

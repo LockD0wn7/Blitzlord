@@ -1,4 +1,5 @@
-import { getPlayableHints, type Card, type CardPlay, type Rank } from "@blitzlord/shared";
+import type { Card, CardPlay, Rank } from "@blitzlord/shared";
+import { getPlayableHints } from "@blitzlord/shared/games/doudizhu";
 import { buildHintContextKey, getNextHintSelection } from "./hintState";
 
 interface ResolveHintActionParams {

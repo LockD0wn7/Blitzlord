@@ -1,9 +1,8 @@
 import { io, Socket } from "socket.io-client";
-import type { ClientEvents, ServerEvents } from "@blitzlord/shared";
+import type { ClientEvents, MatchActionData, ServerEvents } from "@blitzlord/shared";
 
 type TypedSocket = Socket<ServerEvents, ClientEvents>;
 
-// 默认通过 Vite 代理（同源），也可通过环境变量直连服务端
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "";
 
 function createFallbackPlayerId(): string {
@@ -53,58 +52,71 @@ let socket: TypedSocket | null = null;
 export function getSocket(): TypedSocket {
   if (!socket) {
     const token = getToken();
-    const opts = {
+    const options = {
       auth: { token, playerName: localStorage.getItem("playerName") || "玩家" },
       autoConnect: false,
-      // Render 免费实例冷启动需要 30-60 秒，增加超时
       timeout: 60_000,
       reconnectionDelay: 2_000,
       reconnectionDelayMax: 10_000,
       reconnectionAttempts: 10,
     };
-    socket = (SERVER_URL ? io(SERVER_URL, opts) : io(opts)) as TypedSocket;
+
+    socket = (SERVER_URL ? io(SERVER_URL, options) : io(options)) as TypedSocket;
   }
+
   return socket;
 }
 
 export function connectSocket(): void {
-  const s = getSocket();
-  const newAuth = {
+  const currentSocket = getSocket();
+  const nextAuth = {
     token: getToken(),
     playerName: localStorage.getItem("playerName") || "玩家",
   };
 
-  if (s.connected) {
-    // R7: 即使已连接，也检查 auth 是否变化，变化则断开重连
-    const currentAuth = s.auth as { token?: string; playerName?: string };
-    if (
-      currentAuth.playerName !== newAuth.playerName ||
-      currentAuth.token !== newAuth.token
-    ) {
-      s.auth = newAuth;
-      s.disconnect();
-      s.connect();
+  if (currentSocket.connected) {
+    const currentAuth = currentSocket.auth as { token?: string; playerName?: string };
+    if (currentAuth.playerName !== nextAuth.playerName || currentAuth.token !== nextAuth.token) {
+      currentSocket.auth = nextAuth;
+      currentSocket.disconnect();
+      currentSocket.connect();
     }
-  } else {
-    s.auth = newAuth;
-    s.connect();
+    return;
   }
+
+  currentSocket.auth = nextAuth;
+  currentSocket.connect();
 }
 
 export function disconnectSocket(): void {
   socket?.disconnect();
 }
 
-export function emitVoteMode(
-  wildcard: boolean,
+export function emitVoteConfigChange(
+  data: { gameId?: string; modeId?: string; configPatch?: Record<string, unknown> },
   cb: (res: { ok: boolean; error?: string }) => void,
 ): void {
-  getSocket().emit("room:voteMode", { wildcard }, cb);
+  getSocket().emit("room:voteConfigChange", data, cb);
 }
 
-export function emitVoteModeVote(
+export function emitVoteConfigChangeVote(
   agree: boolean,
   cb: (res: { ok: boolean; error?: string }) => void,
 ): void {
-  getSocket().emit("room:voteModeVote", { agree }, cb);
+  getSocket().emit("room:voteConfigChangeVote", { agree }, cb);
+}
+
+export function emitMatchReady(): void {
+  getSocket().emit("match:ready");
+}
+
+export function emitMatchAction(
+  data: MatchActionData,
+  cb: (res: { ok: boolean; error?: string }) => void,
+): void {
+  getSocket().emit("match:action", data, cb);
+}
+
+export function emitMatchRequestSync(): void {
+  getSocket().emit("match:requestSync");
 }

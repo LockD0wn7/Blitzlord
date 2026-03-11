@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { useGameStore } from "../../store/useGameStore";
+import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
 import { useSocketStore } from "../../store/useSocketStore";
-import { getSocket } from "../../socket";
+import { emitMatchAction } from "../../socket";
 import { resolveHintAction } from "./hintAction";
 
 interface ActionBarProps {
@@ -12,23 +12,22 @@ interface ActionBarProps {
 export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
   const token =
     useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
-  const myHand = useGameStore((s) => s.myHand);
-  const currentTurn = useGameStore((s) => s.currentTurn);
-  const lastPlay = useGameStore((s) => s.lastPlay);
-  const selectedCards = useGameStore((s) => s.selectedCards);
-  const hintContextKey = useGameStore((s) => s.hintContextKey);
-  const hintCursor = useGameStore((s) => s.hintCursor);
-  const wildcardRank = useGameStore((s) => s.wildcardRank);
-  const applyHintSelection = useGameStore((s) => s.applyHintSelection);
-  const clearSelection = useGameStore((s) => s.clearSelection);
-  const setErrorMessage = useGameStore((s) => s.setErrorMessage);
+  const myHand = useDoudizhuGameStore((s) => s.myHand);
+  const currentTurn = useDoudizhuGameStore((s) => s.currentTurn);
+  const lastPlay = useDoudizhuGameStore((s) => s.lastPlay);
+  const selectedCards = useDoudizhuGameStore((s) => s.selectedCards);
+  const hintContextKey = useDoudizhuGameStore((s) => s.hintContextKey);
+  const hintCursor = useDoudizhuGameStore((s) => s.hintCursor);
+  const wildcardRank = useDoudizhuGameStore((s) => s.wildcardRank);
+  const applyHintSelection = useDoudizhuGameStore((s) => s.applyHintSelection);
+  const clearSelection = useDoudizhuGameStore((s) => s.clearSelection);
+  const setErrorMessage = useDoudizhuGameStore((s) => s.setErrorMessage);
 
   const handlePlay = useCallback(() => {
     if (selectedCards.length === 0) return;
-    const socket = getSocket();
-    socket.emit("game:playCards", { cards: selectedCards }, (res) => {
+    emitMatchAction({ type: "playCards", cards: selectedCards }, (res) => {
       if (res.ok) {
-        // 手牌移除由 game:cardsPlayed 广播统一处理，此处仅清除选择
+        // 手牌更新统一由 match:syncState 快照驱动，这里只清空当前选择
         clearSelection();
       } else {
         setErrorMessage(res.error || "出牌失败");
@@ -73,8 +72,7 @@ export default function ActionBar({ isMyTurn, canPass }: ActionBarProps) {
   ]);
 
   const handlePass = useCallback(() => {
-    const socket = getSocket();
-    socket.emit("game:pass", (res) => {
+    emitMatchAction({ type: "pass" }, (res) => {
       if (!res.ok) {
         setErrorMessage(res.error || "不出失败");
       }

@@ -1,8 +1,8 @@
 import {
-  getDisplayCardsForPlay,
   type CardPlay,
   type Rank,
 } from "@blitzlord/shared";
+import { getDisplayCardsForPlay } from "@blitzlord/shared/games/doudizhu";
 import CardComponent from "./CardComponent";
 
 interface PlayedCardsProps {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identifyCardType } from "../rules/cardType.js";
+import { identifyCardType } from "../games/doudizhu/index.js";
 import { CardType, Rank, Suit } from "../types/card.js";
 import type { Card } from "../types/card.js";
 

@@ -1,9 +1,19 @@
 import type { Server, Socket } from "socket.io";
-import type { ClientEvents, ServerEvents } from "@blitzlord/shared";
-import { DISCONNECT_TIMEOUT_MS, GamePhase, RoomStatus } from "@blitzlord/shared";
+import type { ClientEvents, MatchActionData, ServerEvents } from "@blitzlord/shared";
+import {
+  DISCONNECT_TIMEOUT_MS,
+  GamePhase,
+  getGameDefinition,
+  getModeDefinition,
+  registerGame,
+  RoomStatus,
+} from "@blitzlord/shared";
+import { doudizhuDefinition } from "@blitzlord/shared/games/doudizhu";
 import { SessionManager } from "../session/SessionManager.js";
 import { RoomManager } from "../room/RoomManager.js";
-import { GameManager } from "../game/GameManager.js";
+import type { RoomGameSelection } from "../room/Room.js";
+import type { MatchEngine } from "../platform/MatchEngine.js";
+import type { ServerGameRegistry } from "../platform/GameRegistry.js";
 
 type TypedServer = Server<ClientEvents, ServerEvents>;
 type TypedSocket = Socket<ClientEvents, ServerEvents>;
@@ -12,7 +22,74 @@ export interface HandlerDeps {
   io: TypedServer;
   roomManager: RoomManager;
   sessionManager: SessionManager;
-  games: Map<string, GameManager>;
+  gameRegistry: ServerGameRegistry;
+  matches: Map<string, MatchEngine>;
+}
+
+function asConfigRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return { ...(value as Record<string, unknown>) };
+}
+
+function ensureBuiltInGamesRegistered(): void {
+  if (!getGameDefinition(doudizhuDefinition.gameId)) {
+    registerGame(doudizhuDefinition);
+  }
+}
+
+function resolveSelection(gameId: string, modeId: string, config?: Record<string, unknown>): RoomGameSelection | null {
+  ensureBuiltInGamesRegistered();
+
+  const game = getGameDefinition(gameId);
+  const mode = getModeDefinition(gameId, modeId);
+  if (!game || !mode) {
+    return null;
+  }
+
+  return {
+    gameId: game.gameId,
+    gameName: game.gameName,
+    modeId: mode.modeId,
+    modeName: mode.modeName,
+    config: {
+      ...asConfigRecord(mode.defaultConfig),
+      ...(config ?? {}),
+    },
+  };
+}
+
+function resolveSelectionFromPatch(
+  currentSelection: RoomGameSelection,
+  data: { gameId?: string; modeId?: string; configPatch?: Record<string, unknown> },
+): RoomGameSelection | null {
+  ensureBuiltInGamesRegistered();
+
+  const gameId = data.gameId ?? currentSelection.gameId;
+  const modeId = data.modeId ?? currentSelection.modeId;
+  const game = getGameDefinition(gameId);
+  const mode = getModeDefinition(gameId, modeId);
+  if (!game || !mode) {
+    return null;
+  }
+
+  const selectionChanged = gameId !== currentSelection.gameId || modeId !== currentSelection.modeId;
+  const baseConfig = selectionChanged
+    ? asConfigRecord(mode.defaultConfig)
+    : currentSelection.config;
+
+  return {
+    gameId: game.gameId,
+    gameName: game.gameName,
+    modeId: mode.modeId,
+    modeName: mode.modeName,
+    config: {
+      ...baseConfig,
+      ...(data.configPatch ?? {}),
+    },
+  };
 }
 
 /**
@@ -20,7 +97,7 @@ export interface HandlerDeps {
  * 依赖注入，便于测试和替换。
  */
 export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void {
-  const { io, roomManager, sessionManager, games } = deps;
+  const { io, roomManager, sessionManager, gameRegistry, matches } = deps;
 
   /** playerId → 断线超时定时器 */
   const disconnectTimers = new Map<string, NodeJS.Timeout>();
@@ -68,10 +145,10 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           room.setOnline(session.playerId, true);
 
           // 如果有进行中的游戏
-          const game = games.get(session.roomId);
+          const game = matches.get(session.roomId);
           if (game && game.phase !== GamePhase.Ended) {
             game.setPlayerOnline(session.playerId, true);
-            socket.emit("game:syncState", game.getFullState(session.playerId));
+            socket.emit("match:syncState", game.getFullState(session.playerId));
             io.to(session.roomId).emit("player:reconnected", {
               playerId: session.playerId,
             });
@@ -98,10 +175,10 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           socket.join(session.roomId);
           room.setOnline(session.playerId, true);
 
-          const game = games.get(session.roomId);
+          const game = matches.get(session.roomId);
           if (game && game.phase !== GamePhase.Ended) {
             game.setPlayerOnline(session.playerId, true);
-            socket.emit("game:syncState", game.getFullState(session.playerId));
+            socket.emit("match:syncState", game.getFullState(session.playerId));
           } else {
             io.to(session.roomId).emit("room:updated", room.toRoomDetail());
           }
@@ -130,8 +207,13 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      const wildcard = typeof data.wildcard === "boolean" ? data.wildcard : false;
-      const room = roomManager.createRoom(roomName, session.playerId, session.playerName, wildcard);
+      const selection = resolveSelection(data.gameId, data.modeId, data.config);
+      if (!selection) {
+        callback({ ok: false, error: "Unsupported game or mode." });
+        return;
+      }
+
+      const room = roomManager.createRoom(roomName, session.playerId, session.playerName, selection);
       session.roomId = room.roomId;
       socket.join(room.roomId);
       io.emit("room:listUpdated", roomManager.listRooms());
@@ -180,15 +262,15 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       }
 
       // 如果正在游戏中 → 立即判负
-      const game = games.get(roomId);
+      const game = matches.get(roomId);
       if (game && game.phase !== GamePhase.Ended) {
         const endResult = game.handleDisconnectTimeout(playerId);
         if (endResult) {
           // R3: 先向离开者发送结算，再让其离开 socket room
-          socket.emit("game:ended", endResult);
-          io.to(roomId).emit("game:ended", endResult);
+          socket.emit("match:ended", endResult);
+          io.to(roomId).emit("match:ended", endResult);
         }
-        games.delete(roomId);
+        matches.delete(roomId);
 
         const room = roomManager.getRoom(roomId);
         if (room) {
@@ -235,8 +317,24 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       callback({ ok: true, room: room.toRoomDetail() });
     });
 
-    // ==================== game:ready ====================
-    socket.on("game:ready", () => {
+    function emitMatchSync(roomId: string, game: MatchEngine): void {
+      const room = roomManager.getRoom(roomId);
+      if (!room) {
+        return;
+      }
+
+      for (const player of room.players) {
+        const playerSession = sessionManager.getByToken(player.playerId);
+        if (!playerSession?.socketId) {
+          continue;
+        }
+
+        io.to(playerSession.socketId).emit("match:syncState", game.getFullState(player.playerId));
+      }
+    }
+
+    // ==================== match:ready ====================
+    socket.on("match:ready", () => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
         socket.emit("error", { message: "未在房间中" });
@@ -249,7 +347,6 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      // R4: 只有在等待状态才能准备
       if (room.status !== RoomStatus.Waiting) {
         socket.emit("error", { message: "房间不在等待状态" });
         return;
@@ -258,250 +355,151 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       room.setReady(session.playerId, true);
       io.to(session.roomId).emit("room:updated", room.toRoomDetail());
 
-      // 如果全部准备好，开始游戏
-      if (room.allReady) {
-        room.startPlaying();
-
-        const gamePlayers = room.players.map((p) => ({
-          playerId: p.playerId,
-          playerName: p.playerName,
-        }));
-
-        const game = new GameManager(session.roomId, gamePlayers, room.wildcard);
-        games.set(session.roomId, game);
-
-        // 向每个玩家分别推送 game:started（各自手牌不同）
-        const playersInfo = room.players.map((p) => ({
-          playerId: p.playerId,
-          playerName: p.playerName,
-          seatIndex: p.seatIndex,
-        }));
-
-        for (const p of room.players) {
-          const pSession = sessionManager.getByToken(p.playerId);
-          if (pSession?.socketId) {
-            io.to(pSession.socketId).emit("game:started", {
-              hand: game.getPlayerHand(p.playerId),
-              firstCaller: game.currentCallerId!,
-              players: playersInfo,
-            });
-          }
-        }
-
-        io.emit("room:listUpdated", roomManager.listRooms());
+      if (!room.allReady) {
+        return;
       }
+
+      room.startPlaying();
+      io.to(session.roomId).emit("room:updated", room.toRoomDetail());
+
+      const gamePlayers = room.players.map((player) => ({
+        playerId: player.playerId,
+        playerName: player.playerName,
+      }));
+
+      const game = gameRegistry.createMatchEngine(session.roomId, gamePlayers, room.gameSelection);
+      matches.set(session.roomId, game);
+      io.to(session.roomId).emit("match:started");
+      emitMatchSync(session.roomId, game);
+      io.emit("room:listUpdated", roomManager.listRooms());
     });
 
-    // ==================== game:callLandlord ====================
-    socket.on("game:callLandlord", (data, callback) => {
+    socket.on("match:action", (data: MatchActionData, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
         callback({ ok: false, error: "未在房间中" });
         return;
       }
 
-      const game = games.get(session.roomId);
+      const game = matches.get(session.roomId);
       if (!game) {
         callback({ ok: false, error: "没有进行中的游戏" });
         return;
       }
 
-      // S5: 验证叫分值合法性
-      if (![0, 1, 2, 3].includes(data.bid)) {
-        callback({ ok: false, error: "无效的叫分值" });
-        return;
-      }
+      switch (data.type) {
+        case "callBid": {
+          if (![0, 1, 2, 3].includes(data.bid)) {
+            callback({ ok: false, error: "无效的叫分值" });
+            return;
+          }
 
-      const result = game.callBid(session.playerId, data.bid);
-      if (!result.ok) {
-        callback({ ok: false, error: result.error });
-        return;
-      }
+          const result = game.dispatch({
+            type: "callBid",
+            playerId: session.playerId,
+            bid: data.bid,
+          });
+          if (!result.ok) {
+            callback({ ok: false, error: result.error });
+            return;
+          }
 
-      callback({ ok: true });
+          callback({ ok: true });
 
-      const roomId = session.roomId;
+          const roomId = session.roomId;
 
-      // 广播叫分更新
-      io.to(roomId).emit("game:callUpdate", {
-        playerId: session.playerId,
-        bid: data.bid,
-        nextCaller: result.nextCaller ?? null,
-      });
+          if (result.redeal) {
+            emitMatchSync(roomId, game);
+            return;
+          }
 
-      // 如果需要重新发牌
-      if (result.redeal) {
-        const room = roomManager.getRoom(roomId);
-        if (room) {
-          const playersInfo = room.players.map((p) => ({
-            playerId: p.playerId,
-            playerName: p.playerName,
-            seatIndex: p.seatIndex,
-          }));
+          emitMatchSync(roomId, game);
+          return;
+        }
 
-          for (const p of room.players) {
-            const pSession = sessionManager.getByToken(p.playerId);
-            if (pSession?.socketId) {
-              io.to(pSession.socketId).emit("game:started", {
-                hand: game.getPlayerHand(p.playerId),
-                firstCaller: game.currentCallerId!,
-                players: playersInfo,
-              });
+        case "playCards": {
+          if (
+            !Array.isArray(data.cards) ||
+            data.cards.some(
+              (card: unknown) =>
+                typeof card !== "object" || card === null ||
+                !("rank" in card) || !("suit" in card),
+            )
+          ) {
+            callback({ ok: false, error: "无效的出牌数据" });
+            return;
+          }
+
+          const result = game.dispatch({
+            type: "playCards",
+            playerId: session.playerId,
+            cards: data.cards,
+          });
+          if (!result.ok) {
+            callback({ ok: false, error: result.error });
+            return;
+          }
+
+          callback({ ok: true });
+
+          const roomId = session.roomId;
+
+          if (result.gameEnd) {
+            io.to(roomId).emit("match:ended", result.gameEnd);
+
+            const room = roomManager.getRoom(roomId);
+            if (room) {
+              room.finishGame();
+              room.backToWaiting();
             }
+
+            matches.delete(roomId);
+            io.emit("room:listUpdated", roomManager.listRooms());
+            return;
           }
-        }
-        return;
-      }
 
-      // 如果已确定地主
-      if (result.landlord) {
-        io.to(roomId).emit("game:landlordDecided", {
-          landlordId: result.landlord.playerId,
-          bottomCards: result.landlord.bottomCards,
-          baseBid: result.landlord.baseBid,
-          wildcardRank: result.landlord.wildcardRank,
-        });
-
-        // 给地主推送完整状态（含底牌后的新手牌）
-        const landlordSession = sessionManager.getByToken(result.landlord.playerId);
-        if (landlordSession?.socketId) {
-          io.to(landlordSession.socketId).emit(
-            "game:syncState",
-            game.getFullState(result.landlord.playerId),
-          );
+          emitMatchSync(roomId, game);
+          return;
         }
 
-        // 广播轮次
-        if (game.currentTurn) {
-          io.to(roomId).emit("game:turnChanged", {
-            currentTurn: game.currentTurn,
+        case "pass": {
+          const result = game.dispatch({
+            type: "pass",
+            playerId: session.playerId,
           });
+          if (!result.ok) {
+            callback({ ok: false, error: result.error });
+            return;
+          }
+
+          callback({ ok: true });
+
+          const roomId = session.roomId;
+          emitMatchSync(roomId, game);
+          return;
         }
       }
     });
 
-    // ==================== game:playCards ====================
-    socket.on("game:playCards", (data, callback) => {
-      const session = sessionManager.getBySocketId(socket.id);
-      if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
-        return;
-      }
-
-      const game = games.get(session.roomId);
-      if (!game) {
-        callback({ ok: false, error: "没有进行中的游戏" });
-        return;
-      }
-
-      // S6: 验证出牌数据格式
-      if (
-        !Array.isArray(data.cards) ||
-        data.cards.some(
-          (c: unknown) =>
-            typeof c !== "object" || c === null ||
-            !("rank" in c) || !("suit" in c),
-        )
-      ) {
-        callback({ ok: false, error: "无效的出牌数据" });
-        return;
-      }
-
-      const result = game.playCards(session.playerId, data.cards);
-      if (!result.ok) {
-        callback({ ok: false, error: result.error });
-        return;
-      }
-
-      callback({ ok: true });
-
-      const roomId = session.roomId;
-
-      // 广播出牌
-      io.to(roomId).emit("game:cardsPlayed", {
-        playerId: session.playerId,
-        play: result.play!,
-        remainingCards: result.remainingCards!,
-      });
-
-      // 游戏结束
-      if (result.gameEnd) {
-        io.to(roomId).emit("game:ended", result.gameEnd);
-
-        const room = roomManager.getRoom(roomId);
-        if (room) {
-          room.finishGame();
-          room.backToWaiting();
-        }
-        games.delete(roomId);
-        io.emit("room:listUpdated", roomManager.listRooms());
-      } else {
-        // 广播轮次切换
-        if (game.currentTurn) {
-          io.to(roomId).emit("game:turnChanged", {
-            currentTurn: game.currentTurn,
-          });
-        }
-      }
-    });
-
-    // ==================== game:pass ====================
-    socket.on("game:pass", (callback) => {
-      const session = sessionManager.getBySocketId(socket.id);
-      if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
-        return;
-      }
-
-      const game = games.get(session.roomId);
-      if (!game) {
-        callback({ ok: false, error: "没有进行中的游戏" });
-        return;
-      }
-
-      const result = game.pass(session.playerId);
-      if (!result.ok) {
-        callback({ ok: false, error: result.error });
-        return;
-      }
-
-      callback({ ok: true });
-
-      const roomId = session.roomId;
-
-      // 广播 pass
-      io.to(roomId).emit("game:passed", {
-        playerId: session.playerId,
-        resetRound: result.resetRound ?? false,
-      });
-
-      // 广播轮次切换
-      if (result.nextTurn) {
-        io.to(roomId).emit("game:turnChanged", {
-          currentTurn: result.nextTurn,
-        });
-      }
-    });
-
-    // ==================== game:requestSync ====================
-    socket.on("game:requestSync", () => {
+    // ==================== match:requestSync ====================
+    socket.on("match:requestSync", () => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
         socket.emit("error", { message: "未在房间中" });
         return;
       }
 
-      const game = games.get(session.roomId);
+      const game = matches.get(session.roomId);
       if (!game) {
         socket.emit("error", { message: "没有进行中的游戏" });
         return;
       }
 
-      socket.emit("game:syncState", game.getFullState(session.playerId));
+      socket.emit("match:syncState", game.getFullState(session.playerId));
     });
 
-    // ==================== room:voteMode ====================
-    socket.on("room:voteMode", (data, callback) => {
+    // ==================== room:voteConfigChange ====================
+    socket.on("room:voteConfigChange", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
         callback({ ok: false, error: "未在房间中" });
@@ -519,21 +517,29 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      const result = room.startModeVote(session.playerId, data.wildcard);
+      const selection = resolveSelectionFromPatch(room.gameSelection, data);
+      if (!selection) {
+        callback({ ok: false, error: "Unsupported game or mode." });
+        return;
+      }
+
+      const result = room.startConfigVote(session.playerId, selection);
       if (!result.ok) {
         callback({ ok: false, error: result.error });
         return;
       }
 
-      io.to(session.roomId).emit("room:voteModeStarted", {
+      io.to(session.roomId).emit("room:voteConfigChangeStarted", {
         initiator: session.playerId,
-        wildcard: data.wildcard,
+        gameId: data.gameId,
+        modeId: data.modeId,
+        configPatch: data.configPatch,
       });
       callback({ ok: true });
     });
 
-    // ==================== room:voteModeVote ====================
-    socket.on("room:voteModeVote", (data, callback) => {
+    // ==================== room:voteConfigChangeVote ====================
+    socket.on("room:voteConfigChangeVote", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
         callback({ ok: false, error: "未在房间中" });
@@ -546,16 +552,18 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      const result = room.castModeVote(session.playerId, data.agree);
+      const result = room.castConfigVote(session.playerId, data.agree);
       if (!result.ok) {
         callback({ ok: false, error: result.error });
         return;
       }
 
       if (result.result) {
-        io.to(session.roomId).emit("room:voteModeResult", {
+        io.to(session.roomId).emit("room:voteConfigChangeResult", {
           passed: result.result.passed,
-          wildcard: result.result.wildcard,
+          gameId: result.result.selection.gameId,
+          modeId: result.result.selection.modeId,
+          configPatch: result.result.selection.config,
         });
         if (result.result.passed) {
           io.to(session.roomId).emit("room:updated", room.toRoomDetail());
@@ -585,7 +593,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       const room = roomManager.getRoom(roomId);
       if (!room) return;
 
-      const game = games.get(roomId);
+      const game = matches.get(roomId);
 
       if (game && game.phase !== GamePhase.Ended) {
         // 在游戏中 → 标记离线，广播断线，设定超时
@@ -606,16 +614,16 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           }
 
           // S1: 检查 game 引用是否仍然有效（可能已被其他逻辑销毁/替换）
-          if (games.get(roomId) !== game) {
+          if (matches.get(roomId) !== game) {
             return;
           }
 
           // 超时判负
           const endResult = game.handleDisconnectTimeout(session.playerId);
           if (endResult) {
-            io.to(roomId).emit("game:ended", endResult);
+            io.to(roomId).emit("match:ended", endResult);
           }
-          games.delete(roomId);
+          matches.delete(roomId);
 
           // S1: 仅当 session 仍属于此房间时才清除 roomId
           if (currentSession && currentSession.roomId === roomId) {

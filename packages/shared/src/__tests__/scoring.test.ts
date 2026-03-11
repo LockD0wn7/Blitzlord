@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateScore, isSpring } from "../rules/scoring.js";
+import { calculateScore, isSpring } from "../games/doudizhu/index.js";
 
 describe("calculateScore", () => {
   it("基础：1 分叫分，无炸弹，无火箭，无春天 → 1", () => {

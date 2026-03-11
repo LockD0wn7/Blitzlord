@@ -3,8 +3,6 @@ import {
   type CardPlay,
   CardType,
   GamePhase,
-  type GameSnapshot,
-  type GameState,
   PlayerRole,
   type PlayerState,
   Rank,
@@ -15,17 +13,21 @@ import {
   shuffleDeck,
   dealCards,
   sortCards,
-  validatePlay,
-  calculateScore,
-  isSpring,
   cardEquals,
   MAX_REDEAL_COUNT,
 } from "@blitzlord/shared";
-
-export interface GamePlayer {
-  playerId: string;
-  playerName: string;
-}
+import {
+  type DoudizhuSnapshot,
+  type DoudizhuState,
+  validatePlay,
+  calculateScore,
+  isSpring,
+} from "@blitzlord/shared/games/doudizhu";
+import type { MatchPlayer } from "../../platform/types.js";
+import {
+  normalizeRoomGameSelection,
+  type RoomGameSelection,
+} from "../../room/Room.js";
 
 export interface GameEndResult {
   winnerId: string;
@@ -33,27 +35,28 @@ export interface GameEndResult {
   scores: Record<string, ScoreDetail>;
 }
 
-export class GameManager {
-  private state: GameState;
-  private players: GamePlayer[];
+export class DoudizhuMatchRuntime {
+  private state: DoudizhuState;
   private trackerHistory: TrackerHistoryEntry[] = [];
   private trackerSequence = 0;
   private trackerRound = 1;
-  private wildcard: boolean;
+  private readonly wildcard: boolean;
 
   /** 叫分轮转顺序中，当前应该叫分的玩家索引 */
   private callerIndex: number;
   /** 叫分起始玩家索引 */
   private firstCallerIndex: number;
 
-  constructor(roomId: string, players: GamePlayer[], wildcard: boolean = false) {
+  constructor(roomId: string, players: MatchPlayer[], selection: RoomGameSelection) {
     if (players.length !== 3) {
       throw new Error("斗地主必须 3 个玩家");
     }
-    this.players = players;
-    this.wildcard = wildcard;
+    const normalizedSelection = normalizeRoomGameSelection(selection);
+    this.wildcard = normalizedSelection.modeId === "wildcard" || Boolean(normalizedSelection.config.wildcard);
     this.state = {
       roomId,
+      gameId: normalizedSelection.gameId,
+      modeId: normalizedSelection.modeId,
       phase: GamePhase.Dealing,
       players: players.map((p) => ({
         playerId: p.playerId,
@@ -88,6 +91,14 @@ export class GameManager {
 
   get roomId(): string {
     return this.state.roomId;
+  }
+
+  get gameId(): string {
+    return this.state.gameId;
+  }
+
+  get modeId(): string {
+    return this.state.modeId;
   }
 
   /** 获取当前应该叫分的玩家 ID */
@@ -528,11 +539,13 @@ export class GameManager {
   // ===================== 状态快照 =====================
 
   /** 获取某个玩家视角的完整状态快照（用于 syncState） */
-  getFullState(playerId: string): GameSnapshot {
+  getFullState(playerId: string): DoudizhuSnapshot {
     const me = this.getPlayerState(playerId);
 
     return {
       roomId: this.state.roomId,
+      gameId: this.state.gameId,
+      modeId: this.state.modeId,
       phase: this.state.phase,
       myHand: me ? [...me.hand] : [],
       myRole: me?.role ?? null,

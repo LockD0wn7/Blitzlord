@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canBeat } from "../rules/cardCompare.js";
+import { canBeat } from "../games/doudizhu/index.js";
 import { CardType, Rank } from "../types/card.js";
 import type { Card, CardPlay } from "../types/card.js";
 import { Suit } from "../types/card.js";

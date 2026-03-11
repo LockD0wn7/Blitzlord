@@ -1,5 +1,4 @@
-import type { RoomInfo } from "@blitzlord/shared";
-import { RoomStatus } from "@blitzlord/shared";
+import { RoomStatus, type RoomInfo } from "@blitzlord/shared";
 
 interface RoomListProps {
   rooms: RoomInfo[];
@@ -28,12 +27,22 @@ function statusColor(status: RoomStatus): string {
   }
 }
 
+function getModeLabel(room: RoomInfo): string {
+  if (room.modeId === "wildcard") {
+    return "赖子模式";
+  }
+  if (room.modeId === "classic") {
+    return "经典模式";
+  }
+  return room.modeName;
+}
+
 export default function RoomList({ rooms, onJoin }: RoomListProps) {
   if (rooms.length === 0) {
     return (
       <div className="text-center text-muted py-16">
-        <div className="text-4xl mb-3 opacity-30">♠</div>
-        暂无房间，快来创建一个吧！
+        <div className="text-4xl mb-3 opacity-30">+</div>
+        暂无房间，创建一个开始吧。
       </div>
     );
   }
@@ -47,17 +56,14 @@ export default function RoomList({ rooms, onJoin }: RoomListProps) {
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-warm font-medium truncate">
-              {room.roomName}
-              {room.wildcard && (
-                <span className="shrink-0 rounded bg-gold/20 px-1.5 py-0.5 text-xs font-semibold text-gold border border-gold/30">
-                  赖子
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-sm mt-1">
-              <span className={statusColor(room.status)}>
-                {statusLabel(room.status)}
+              <span className="truncate">{room.roomName}</span>
+              <span className="shrink-0 rounded bg-gold/20 px-1.5 py-0.5 text-xs font-semibold text-gold border border-gold/30">
+                {getModeLabel(room)}
               </span>
+            </div>
+            <div className="mt-1 flex items-center gap-3 text-sm">
+              <span className="text-muted">{room.gameName}</span>
+              <span className={statusColor(room.status)}>{statusLabel(room.status)}</span>
               <span className="text-muted">
                 {room.playerCount}/{room.maxPlayers} 人
               </span>
@@ -65,10 +71,7 @@ export default function RoomList({ rooms, onJoin }: RoomListProps) {
           </div>
           <button
             onClick={() => onJoin(room.roomId)}
-            disabled={
-              room.status !== RoomStatus.Waiting ||
-              room.playerCount >= room.maxPlayers
-            }
+            disabled={room.status !== RoomStatus.Waiting || room.playerCount >= room.maxPlayers}
             className="btn-gold ml-4 px-4 py-2 rounded-lg text-sm"
           >
             加入

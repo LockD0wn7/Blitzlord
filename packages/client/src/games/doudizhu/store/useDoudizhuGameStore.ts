@@ -3,12 +3,12 @@ import type {
   Card,
   CardTrackerSnapshot,
   CardPlay,
-  GameSnapshot,
   PlayerRole,
   Rank,
   ScoreDetail,
 } from "@blitzlord/shared";
 import { GamePhase, cardEquals } from "@blitzlord/shared";
+import type { DoudizhuSnapshot } from "@blitzlord/shared/games/doudizhu";
 
 interface GamePlayer {
   playerId: string;
@@ -44,7 +44,7 @@ interface GameState {
   errorMessage: string | null;
 
   // actions
-  syncState: (snapshot: GameSnapshot) => void;
+  syncState: (snapshot: DoudizhuSnapshot) => void;
   setHand: (hand: Card[]) => void;
   setPhase: (phase: GamePhase) => void;
   setCurrentTurn: (turn: string | null) => void;
@@ -105,10 +105,10 @@ const initialState = {
   errorMessage: null as string | null,
 };
 
-export const useGameStore = create<GameState>((set) => ({
+export const useDoudizhuGameStore = create<GameState>((set) => ({
   ...initialState,
 
-  syncState: (snapshot: GameSnapshot) =>
+  syncState: (snapshot: DoudizhuSnapshot) =>
     set({
       phase: snapshot.phase,
       myHand: snapshot.myHand,
@@ -122,7 +122,7 @@ export const useGameStore = create<GameState>((set) => ({
       players: snapshot.players,
       callSequence: snapshot.callSequence,
       tracker: snapshot.tracker,
-      wildcardRank: snapshot.wildcardRank ?? null,
+      wildcardRank: snapshot.wildcardRank,
       selectedCards: [],
       hintContextKey: null,
       hintCursor: 0,

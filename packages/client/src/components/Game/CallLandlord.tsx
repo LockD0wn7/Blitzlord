@@ -1,14 +1,14 @@
 import { useCallback } from "react";
-import { useGameStore } from "../../store/useGameStore";
-import { getSocket } from "../../socket";
+import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
+import { emitMatchAction } from "../../socket";
 
 interface CallLandlordProps {
   isMyTurn: boolean;
 }
 
 export default function CallLandlord({ isMyTurn }: CallLandlordProps) {
-  const callSequence = useGameStore((s) => s.callSequence);
-  const setErrorMessage = useGameStore((s) => s.setErrorMessage);
+  const callSequence = useDoudizhuGameStore((s) => s.callSequence);
+  const setErrorMessage = useDoudizhuGameStore((s) => s.setErrorMessage);
 
   // 找到当前最高叫分
   const maxBid = callSequence.reduce(
@@ -18,8 +18,7 @@ export default function CallLandlord({ isMyTurn }: CallLandlordProps) {
 
   const handleBid = useCallback(
     (bid: 0 | 1 | 2 | 3) => {
-      const socket = getSocket();
-      socket.emit("game:callLandlord", { bid }, (res) => {
+      emitMatchAction({ type: "callBid", bid }, (res) => {
         if (!res.ok) {
           setErrorMessage(res.error || "叫分失败");
         }

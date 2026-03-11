@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Card, Rank } from "@blitzlord/shared";
 import { cardEquals } from "@blitzlord/shared";
-import { useGameStore } from "../../store/useGameStore";
+import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
 import CardComponent from "./CardComponent";
 
 interface PlayerHandLayoutProps {
@@ -63,10 +63,10 @@ export function PlayerHandLayout({
 }
 
 export default function PlayerHand() {
-  const myHand = useGameStore((s) => s.myHand);
-  const selectedCards = useGameStore((s) => s.selectedCards);
-  const toggleCardSelection = useGameStore((s) => s.toggleCardSelection);
-  const wildcardRank = useGameStore((s) => s.wildcardRank);
+  const myHand = useDoudizhuGameStore((s) => s.myHand);
+  const selectedCards = useDoudizhuGameStore((s) => s.selectedCards);
+  const toggleCardSelection = useDoudizhuGameStore((s) => s.toggleCardSelection);
+  const wildcardRank = useDoudizhuGameStore((s) => s.wildcardRank);
 
   return (
     <PlayerHandLayout

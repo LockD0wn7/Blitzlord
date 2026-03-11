@@ -1,4 +1,4 @@
 export * from "./types/index.js";
 export * from "./constants/index.js";
 export * from "./utils/index.js";
-export * from "./rules/index.js";
+export * from "./platform/index.js";

@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { GameManager, type GamePlayer } from "../game/GameManager.js";
+import { DoudizhuMatchRuntime } from "../games/doudizhu/DoudizhuMatchRuntime.js";
+import type { MatchPlayer } from "../platform/types.js";
+import type { RoomGameSelection } from "../room/Room.js";
 import {
   GamePhase,
   PlayerRole,
@@ -9,24 +11,34 @@ import {
   CardType,
 } from "@blitzlord/shared";
 
-const PLAYERS: GamePlayer[] = [
+const PLAYERS: MatchPlayer[] = [
   { playerId: "p1", playerName: "Alice" },
   { playerId: "p2", playerName: "Bob" },
   { playerId: "p3", playerName: "Carol" },
 ];
 
-function createGame(): GameManager {
-  return new GameManager("room-1", PLAYERS);
+function createSelection(modeId: "classic" | "wildcard" = "classic"): RoomGameSelection {
+  return {
+    gameId: "doudizhu",
+    gameName: "Doudizhu",
+    modeId,
+    modeName: modeId === "wildcard" ? "Wildcard" : "Classic",
+    config: { wildcard: modeId === "wildcard" },
+  };
+}
+
+function createGame(): DoudizhuMatchRuntime {
+  return new DoudizhuMatchRuntime("room-1", PLAYERS, createSelection());
 }
 
 function findTrackerStat(
-  snapshot: ReturnType<GameManager["getFullState"]>,
+  snapshot: ReturnType<DoudizhuMatchRuntime["getFullState"]>,
   rank: Rank,
 ) {
   return snapshot.tracker.remainingByRank.find((entry) => entry.rank === rank);
 }
 
-describe("GameManager", () => {
+describe("DoudizhuMatchRuntime", () => {
   describe("初始化", () => {
     it("创建后应进入叫分阶段", () => {
       const gm = createGame();
@@ -52,7 +64,7 @@ describe("GameManager", () => {
     });
 
     it("必须 3 个玩家", () => {
-      expect(() => new GameManager("room-1", [PLAYERS[0], PLAYERS[1]])).toThrow();
+      expect(() => new DoudizhuMatchRuntime("room-1", [PLAYERS[0], PLAYERS[1]], createSelection())).toThrow();
     });
   });
 
@@ -153,7 +165,7 @@ describe("GameManager", () => {
   });
 
   describe("出牌阶段", () => {
-    function setupPlaying(gm: GameManager): string {
+    function setupPlaying(gm: DoudizhuMatchRuntime): string {
       const caller = gm.currentCallerId!;
       gm.callBid(caller, 1);
       // 第二、三个人不叫
@@ -337,7 +349,7 @@ describe("GameManager", () => {
   });
 
   describe("tracker snapshot", () => {
-    function setupTrackerPlaying(gm: GameManager): string {
+    function setupTrackerPlaying(gm: DoudizhuMatchRuntime): string {
       const caller = gm.currentCallerId!;
       gm.callBid(caller, 1);
       const c2 = gm.currentCallerId!;
@@ -484,7 +496,7 @@ describe("GameManager", () => {
   });
 
   describe("完整游戏流程", () => {
-    function setupPlaying2(gm: GameManager): string {
+    function setupPlaying2(gm: DoudizhuMatchRuntime): string {
       const caller = gm.currentCallerId!;
       gm.callBid(caller, 1);
       const c2 = gm.currentCallerId!;
@@ -601,11 +613,11 @@ describe("GameManager", () => {
   });
 
   describe("赖子模式", () => {
-    function createWildcardGame(): GameManager {
-      return new GameManager("room-1", PLAYERS, true);
+    function createWildcardGame(): DoudizhuMatchRuntime {
+      return new DoudizhuMatchRuntime("room-1", PLAYERS, createSelection("wildcard"));
     }
 
-    function decideLandlordForGame(gm: GameManager): string {
+    function decideLandlordForGame(gm: DoudizhuMatchRuntime): string {
       const caller = gm.currentCallerId!;
       gm.callBid(caller, 3);
       return caller;
@@ -713,7 +725,7 @@ describe("GameManager", () => {
     });
 
     it("非赖子模式构造函数默认 wildcard=false", () => {
-      const gm = new GameManager("room-1", PLAYERS);
+      const gm = new DoudizhuMatchRuntime("room-1", PLAYERS, createSelection());
       const caller = gm.currentCallerId!;
       gm.callBid(caller, 3);
       const snapshot = gm.getFullState(caller);

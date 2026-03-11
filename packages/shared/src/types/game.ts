@@ -23,6 +23,8 @@ export interface PlayerState {
 
 export interface GameState {
   roomId: string;
+  gameId: string;
+  modeId: string;
   phase: GamePhase;
   players: PlayerState[];
   currentTurn: string | null; // 当前出牌的 playerId
@@ -34,7 +36,6 @@ export interface GameState {
   rocketUsed: boolean;
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   redealCount: number;
-  wildcardRank: Rank | null;
 }
 
 export interface ScoreDetail {
@@ -69,6 +70,8 @@ export interface CardTrackerSnapshot {
 /** 玩家视角的完整状态快照，用于 syncState 重连推送 */
 export interface GameSnapshot {
   roomId: string;
+  gameId: string;
+  modeId: string;
   phase: GamePhase;
   myHand: Card[];
   myRole: PlayerRole | null;
@@ -76,7 +79,7 @@ export interface GameSnapshot {
   lastPlay: { playerId: string; play: CardPlay } | null;
   consecutivePasses: number;
   bottomCards: Card[]; // 叫地主确定后才有值
-  baseBid: 1 | 2 | 3;
+  baseBid: 0 | 1 | 2 | 3;
   bombCount: number;
   rocketUsed: boolean;
   players: {
@@ -88,5 +91,4 @@ export interface GameSnapshot {
   }[];
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   tracker: CardTrackerSnapshot;
-  wildcardRank: Rank | null;
 }

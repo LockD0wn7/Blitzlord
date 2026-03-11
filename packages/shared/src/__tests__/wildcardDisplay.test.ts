@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDisplayCardsForPlay } from "../rules/display.js";
+import { getDisplayCardsForPlay } from "../games/doudizhu/index.js";
 import { CardType, Rank, Suit, type CardPlay } from "../types/card.js";
 
 describe("getDisplayCardsForPlay", () => {

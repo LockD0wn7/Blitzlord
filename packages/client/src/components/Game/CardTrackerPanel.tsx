@@ -1,9 +1,10 @@
 import type { MouseEvent } from "react";
-import { getDisplayCardsForCards, Rank } from "@blitzlord/shared";
+import { Rank } from "@blitzlord/shared";
 import type {
   TrackerHistoryEntry,
   TrackerRankStat,
 } from "@blitzlord/shared";
+import { getDisplayCardsForCards } from "@blitzlord/shared/games/doudizhu";
 import CardComponent from "./CardComponent";
 
 interface CardTrackerPanelProps {

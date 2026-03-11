@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GamePhase, Rank, Suit } from "@blitzlord/shared";
-import { useGameStore } from "../useGameStore";
+import type { DoudizhuSnapshot } from "@blitzlord/shared/games/doudizhu";
+import { useDoudizhuGameStore } from "../useDoudizhuGameStore";
 
 const aceStat = {
   rank: Rank.Ace,
@@ -10,19 +11,21 @@ const aceStat = {
   remainingOpponentCopies: 2,
 };
 
-describe("useGameStore tracker state", () => {
+describe("useDoudizhuGameStore tracker state", () => {
   beforeEach(() => {
-    useGameStore.getState().resetGame();
+    useDoudizhuGameStore.getState().resetGame();
   });
 
   it("syncs tracker data without overwriting local panel state", () => {
-    const store = useGameStore.getState();
+    const store = useDoudizhuGameStore.getState();
 
     store.toggleTrackerPanel();
-    expect(useGameStore.getState().isTrackerOpen).toBe(true);
+    expect(useDoudizhuGameStore.getState().isTrackerOpen).toBe(true);
 
-    store.syncState({
+    const snapshot: DoudizhuSnapshot = {
       roomId: "room-1",
+      gameId: "doudizhu",
+      modeId: "classic",
       phase: GamePhase.Playing,
       myHand: [{ rank: Rank.Ace, suit: Suit.Spade }],
       myRole: null,
@@ -35,7 +38,6 @@ describe("useGameStore tracker state", () => {
       rocketUsed: false,
       players: [],
       callSequence: [],
-      wildcardRank: null,
       tracker: {
         history: [
           {
@@ -56,15 +58,19 @@ describe("useGameStore tracker state", () => {
           },
         ],
       },
-    });
+      wildcardRank: Rank.Seven,
+    };
 
-    expect(useGameStore.getState().tracker.history).toHaveLength(1);
-    expect(useGameStore.getState().tracker.remainingByRank).toHaveLength(1);
-    expect(useGameStore.getState().isTrackerOpen).toBe(true);
+    store.syncState(snapshot);
+
+    expect(useDoudizhuGameStore.getState().tracker.history).toHaveLength(1);
+    expect(useDoudizhuGameStore.getState().tracker.remainingByRank).toHaveLength(1);
+    expect(useDoudizhuGameStore.getState().isTrackerOpen).toBe(true);
+    expect(useDoudizhuGameStore.getState().wildcardRank).toBe(Rank.Seven);
   });
 
   it("appends played tracker entries and replaces remaining rank stats", () => {
-    useGameStore.getState().appendTrackerPlay(
+    useDoudizhuGameStore.getState().appendTrackerPlay(
       {
         sequence: 1,
         round: 1,
@@ -75,7 +81,7 @@ describe("useGameStore tracker state", () => {
       [aceStat],
     );
 
-    expect(useGameStore.getState().tracker.history).toEqual([
+    expect(useDoudizhuGameStore.getState().tracker.history).toEqual([
       {
         sequence: 1,
         round: 1,
@@ -84,11 +90,11 @@ describe("useGameStore tracker state", () => {
         cards: [{ rank: Rank.King, suit: Suit.Heart }],
       },
     ]);
-    expect(useGameStore.getState().tracker.remainingByRank).toEqual([aceStat]);
+    expect(useDoudizhuGameStore.getState().tracker.remainingByRank).toEqual([aceStat]);
   });
 
   it("appends pass tracker entries without changing remaining rank stats", () => {
-    const store = useGameStore.getState();
+    const store = useDoudizhuGameStore.getState();
 
     store.syncTracker({
       history: [],
@@ -103,7 +109,7 @@ describe("useGameStore tracker state", () => {
       cards: [],
     });
 
-    expect(useGameStore.getState().tracker.history).toEqual([
+    expect(useDoudizhuGameStore.getState().tracker.history).toEqual([
       {
         sequence: 2,
         round: 1,
@@ -112,11 +118,11 @@ describe("useGameStore tracker state", () => {
         cards: [],
       },
     ]);
-    expect(useGameStore.getState().tracker.remainingByRank).toEqual([aceStat]);
+    expect(useDoudizhuGameStore.getState().tracker.remainingByRank).toEqual([aceStat]);
   });
 
   it("applies hint selection and stores hint cursor state", () => {
-    const store = useGameStore.getState();
+    const store = useDoudizhuGameStore.getState();
 
     store.applyHintSelection(
       [{ rank: Rank.King, suit: Suit.Spade }],
@@ -124,15 +130,15 @@ describe("useGameStore tracker state", () => {
       2,
     );
 
-    expect(useGameStore.getState().selectedCards).toEqual([
+    expect(useDoudizhuGameStore.getState().selectedCards).toEqual([
       { rank: Rank.King, suit: Suit.Spade },
     ]);
-    expect(useGameStore.getState().hintContextKey).toBe("ctx-1");
-    expect(useGameStore.getState().hintCursor).toBe(2);
+    expect(useDoudizhuGameStore.getState().hintContextKey).toBe("ctx-1");
+    expect(useDoudizhuGameStore.getState().hintCursor).toBe(2);
   });
 
   it("resets hint cycle when turn changes or hand changes", () => {
-    const store = useGameStore.getState();
+    const store = useDoudizhuGameStore.getState();
 
     store.applyHintSelection(
       [{ rank: Rank.King, suit: Suit.Spade }],
@@ -141,8 +147,8 @@ describe("useGameStore tracker state", () => {
     );
     store.setCurrentTurn("p2");
 
-    expect(useGameStore.getState().hintContextKey).toBeNull();
-    expect(useGameStore.getState().hintCursor).toBe(0);
+    expect(useDoudizhuGameStore.getState().hintContextKey).toBeNull();
+    expect(useDoudizhuGameStore.getState().hintCursor).toBe(0);
 
     store.applyHintSelection(
       [{ rank: Rank.Queen, suit: Suit.Heart }],
@@ -151,7 +157,7 @@ describe("useGameStore tracker state", () => {
     );
     store.setHand([{ rank: Rank.Ace, suit: Suit.Spade }]);
 
-    expect(useGameStore.getState().hintContextKey).toBeNull();
-    expect(useGameStore.getState().hintCursor).toBe(0);
+    expect(useDoudizhuGameStore.getState().hintContextKey).toBeNull();
+    expect(useDoudizhuGameStore.getState().hintCursor).toBe(0);
   });
 });

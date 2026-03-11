@@ -1,33 +1,98 @@
 import { RoomStatus } from "@blitzlord/shared";
 import type { RoomDetail, RoomInfo, RoomPlayer } from "@blitzlord/shared";
 
-export interface ModeVote {
-  wildcard: boolean;
+export interface RoomGameSelection {
+  gameId: string;
+  gameName: string;
+  modeId: string;
+  modeName: string;
+  config: Record<string, unknown>;
+}
+
+export interface ConfigVote {
+  selection: RoomGameSelection;
   initiator: string;
   votes: Map<string, boolean>;
+}
+
+function cloneConfig(config: Record<string, unknown>): Record<string, unknown> {
+  return { ...config };
+}
+
+function cloneSelection(selection: RoomGameSelection): RoomGameSelection {
+  return {
+    gameId: selection.gameId,
+    gameName: selection.gameName,
+    modeId: selection.modeId,
+    modeName: selection.modeName,
+    config: cloneConfig(selection.config),
+  };
+}
+
+function normalizeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, normalizeValue(nested)]),
+    );
+  }
+  return value;
+}
+
+function selectionSignature(selection: RoomGameSelection): string {
+  return JSON.stringify({
+    gameId: selection.gameId,
+    gameName: selection.gameName,
+    modeId: selection.modeId,
+    modeName: selection.modeName,
+    config: normalizeValue(selection.config),
+  });
+}
+
+export function normalizeRoomGameSelection(selection: RoomGameSelection): RoomGameSelection {
+  return {
+    gameId: selection.gameId,
+    gameName: selection.gameName,
+    modeId: selection.modeId,
+    modeName: selection.modeName,
+    config: cloneConfig(selection.config),
+  };
 }
 
 export class Room {
   readonly roomId: string;
   readonly roomName: string;
+  readonly maxPlayers: 3 = 3;
+
   private _status: RoomStatus = RoomStatus.Waiting;
   private _players: RoomPlayer[] = [];
-  readonly maxPlayers: 3 = 3;
-  private _wildcard: boolean;
-  private _modeVote: ModeVote | null = null;
+  private _gameSelection: RoomGameSelection;
+  private _configVote: ConfigVote | null = null;
 
-  constructor(roomId: string, roomName: string, wildcard: boolean = false) {
+  constructor(roomId: string, roomName: string, selection: RoomGameSelection) {
     this.roomId = roomId;
     this.roomName = roomName;
-    this._wildcard = wildcard;
+    this._gameSelection = normalizeRoomGameSelection(selection);
   }
 
-  get wildcard(): boolean {
-    return this._wildcard;
+  get gameSelection(): RoomGameSelection {
+    return cloneSelection(this._gameSelection);
   }
 
-  get modeVote(): ModeVote | null {
-    return this._modeVote;
+  get configVote(): ConfigVote | null {
+    if (!this._configVote) {
+      return null;
+    }
+
+    return {
+      selection: cloneSelection(this._configVote.selection),
+      initiator: this._configVote.initiator,
+      votes: new Map(this._configVote.votes),
+    };
   }
 
   get status(): RoomStatus {
@@ -35,7 +100,7 @@ export class Room {
   }
 
   get players(): readonly RoomPlayer[] {
-    return [...this._players].sort((a, b) => a.seatIndex - b.seatIndex);
+    return [...this._players].sort((left, right) => left.seatIndex - right.seatIndex);
   }
 
   get playerCount(): number {
@@ -46,15 +111,15 @@ export class Room {
     return this._players.length >= this.maxPlayers;
   }
 
-  /** 添加玩家到房间，返回 seatIndex 或 null（满员） */
   addPlayer(playerId: string, playerName: string): number | null {
     if (this.isFull) return null;
-    if (this._players.some((p) => p.playerId === playerId)) return null;
+    if (this._players.some((player) => player.playerId === playerId)) return null;
 
-    // 找一个空闲的座位
-    const taken = new Set(this._players.map((p) => p.seatIndex));
+    const takenSeats = new Set(this._players.map((player) => player.seatIndex));
     let seatIndex = 0;
-    while (taken.has(seatIndex)) seatIndex++;
+    while (takenSeats.has(seatIndex)) {
+      seatIndex += 1;
+    }
 
     this._players.push({
       playerId,
@@ -63,23 +128,21 @@ export class Room {
       isOnline: true,
       seatIndex,
     });
+
     return seatIndex;
   }
 
-  /** 移除玩家 */
   removePlayer(playerId: string): boolean {
-    const idx = this._players.findIndex((p) => p.playerId === playerId);
-    if (idx === -1) return false;
-    this._players.splice(idx, 1);
+    const index = this._players.findIndex((player) => player.playerId === playerId);
+    if (index === -1) return false;
+    this._players.splice(index, 1);
     return true;
   }
 
-  /** 获取房间中的某个玩家 */
   getPlayer(playerId: string): RoomPlayer | undefined {
-    return this._players.find((p) => p.playerId === playerId);
+    return this._players.find((player) => player.playerId === playerId);
   }
 
-  /** 设置玩家准备状态 */
   setReady(playerId: string, ready: boolean): boolean {
     const player = this.getPlayer(playerId);
     if (!player) return false;
@@ -87,103 +150,111 @@ export class Room {
     return true;
   }
 
-  /** 设置玩家在线状态 */
   setOnline(playerId: string, online: boolean): void {
     const player = this.getPlayer(playerId);
-    if (player) player.isOnline = online;
+    if (player) {
+      player.isOnline = online;
+    }
   }
 
-  /** 是否所有玩家都准备且满员 */
   get allReady(): boolean {
-    return this.isFull && this._players.every((p) => p.isReady);
+    return this.isFull && this._players.every((player) => player.isReady);
   }
 
-  /** 开始游戏 */
   startPlaying(): void {
     this._status = RoomStatus.Playing;
   }
 
-  /** 游戏结束 */
   finishGame(): void {
     this._status = RoomStatus.Finished;
   }
 
-  /** 重置所有玩家准备状态 */
   resetReady(): void {
-    for (const p of this._players) {
-      p.isReady = false;
+    for (const player of this._players) {
+      player.isReady = false;
     }
   }
 
-  /** 回到等待状态（游戏结束后再开） */
   backToWaiting(): void {
     this._status = RoomStatus.Waiting;
     this.resetReady();
   }
 
-  /** 发起模式投票 */
-  startModeVote(playerId: string, wildcard: boolean): { ok: boolean; error?: string } {
+  startConfigVote(playerId: string, selection: RoomGameSelection): { ok: boolean; error?: string } {
     if (this._status === RoomStatus.Playing) {
-      return { ok: false, error: "游戏中不能发起投票" };
-    }
-    if (wildcard === this._wildcard) {
-      return { ok: false, error: "不能投票切换到当前已有模式" };
-    }
-    if (this._modeVote !== null) {
-      return { ok: false, error: "已有投票进行中" };
+      return { ok: false, error: "Cannot change room config while a match is in progress." };
     }
     if (!this.getPlayer(playerId)) {
-      return { ok: false, error: "玩家不在房间中" };
+      return { ok: false, error: "Player is not in the room." };
+    }
+    if (this._configVote) {
+      return { ok: false, error: "Another config vote is already active." };
+    }
+
+    const nextSelection = normalizeRoomGameSelection(selection);
+    if (selectionSignature(nextSelection) === selectionSignature(this._gameSelection)) {
+      return { ok: false, error: "The requested config is already active." };
     }
 
     const votes = new Map<string, boolean>();
-    votes.set(playerId, true); // 发起者自动投赞成票
-    this._modeVote = { wildcard, initiator: playerId, votes };
+    votes.set(playerId, true);
+    this._configVote = {
+      selection: nextSelection,
+      initiator: playerId,
+      votes,
+    };
+
     return { ok: true };
   }
 
-  /** 投票 */
-  castModeVote(playerId: string, agree: boolean): { ok: boolean; error?: string; result?: { passed: boolean; wildcard: boolean } } {
-    if (this._modeVote === null) {
-      return { ok: false, error: "没有进行中的投票" };
-    }
-    if (this._modeVote.votes.has(playerId)) {
-      return { ok: false, error: "不能重复投票" };
+  castConfigVote(
+    playerId: string,
+    agree: boolean,
+  ): { ok: boolean; error?: string; result?: { passed: boolean; selection: RoomGameSelection } } {
+    if (!this._configVote) {
+      return { ok: false, error: "There is no active config vote." };
     }
     if (!this.getPlayer(playerId)) {
-      return { ok: false, error: "玩家不在房间中" };
+      return { ok: false, error: "Player is not in the room." };
+    }
+    if (this._configVote.votes.has(playerId)) {
+      return { ok: false, error: "Player has already voted." };
     }
 
-    this._modeVote.votes.set(playerId, agree);
+    this._configVote.votes.set(playerId, agree);
 
     const totalPlayers = this._players.length;
-    const agreeCount = [...this._modeVote.votes.values()].filter((v) => v).length;
-    const disagreeCount = [...this._modeVote.votes.values()].filter((v) => !v).length;
-    const majority = Math.ceil(totalPlayers * 2 / 3);
+    const agreeCount = [...this._configVote.votes.values()].filter((vote) => vote).length;
+    const disagreeCount = [...this._configVote.votes.values()].filter((vote) => !vote).length;
+    const majority = Math.ceil((totalPlayers * 2) / 3);
+    const targetSelection = cloneSelection(this._configVote.selection);
 
-    // 检查是否达到多数或所有人都投完
     if (agreeCount >= majority) {
-      const targetWildcard = this._modeVote.wildcard;
-      this._wildcard = targetWildcard;
-      this._modeVote = null;
-      return { ok: true, result: { passed: true, wildcard: targetWildcard } };
+      this._gameSelection = targetSelection;
+      this._configVote = null;
+      return {
+        ok: true,
+        result: {
+          passed: true,
+          selection: cloneSelection(targetSelection),
+        },
+      };
     }
-    if (disagreeCount >= majority) {
-      const targetWildcard = this._modeVote.wildcard;
-      this._modeVote = null;
-      return { ok: true, result: { passed: false, wildcard: targetWildcard } };
-    }
-    if (this._modeVote.votes.size >= totalPlayers) {
-      // 所有人都投了但没达到多数 — 不通过
-      const targetWildcard = this._modeVote.wildcard;
-      this._modeVote = null;
-      return { ok: true, result: { passed: false, wildcard: targetWildcard } };
+
+    if (disagreeCount >= majority || this._configVote.votes.size >= totalPlayers) {
+      this._configVote = null;
+      return {
+        ok: true,
+        result: {
+          passed: false,
+          selection: targetSelection,
+        },
+      };
     }
 
     return { ok: true };
   }
 
-  /** 转为房间列表项 */
   toRoomInfo(): RoomInfo {
     return {
       roomId: this.roomId,
@@ -191,11 +262,14 @@ export class Room {
       status: this._status,
       playerCount: this._players.length,
       maxPlayers: 3,
-      wildcard: this._wildcard,
+      gameId: this._gameSelection.gameId,
+      gameName: this._gameSelection.gameName,
+      modeId: this._gameSelection.modeId,
+      modeName: this._gameSelection.modeName,
+      configSummary: cloneConfig(this._gameSelection.config),
     };
   }
 
-  /** 转为房间详情 */
   toRoomDetail(): RoomDetail {
     return {
       roomId: this.roomId,
@@ -203,7 +277,11 @@ export class Room {
       status: this._status,
       players: [...this.players],
       maxPlayers: 3,
-      wildcard: this._wildcard,
+      gameId: this._gameSelection.gameId,
+      gameName: this._gameSelection.gameName,
+      modeId: this._gameSelection.modeId,
+      modeName: this._gameSelection.modeName,
+      configSummary: cloneConfig(this._gameSelection.config),
     };
   }
 }

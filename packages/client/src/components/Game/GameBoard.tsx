@@ -1,23 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useGameStore } from "../../store/useGameStore";
-import { useRoomStore } from "../../store/useRoomStore";
+import { useEffect, useMemo } from "react";
+import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
 import { useSocketStore } from "../../store/useSocketStore";
-import { getSocket, connectSocket } from "../../socket";
+import { getSocket, connectSocket, emitMatchRequestSync } from "../../socket";
 import {
   GamePhase,
   PlayerRole,
-  CardType,
-  RoomStatus,
-  sortCards,
   RANK_NAMES,
 } from "@blitzlord/shared";
 import type {
-  Card,
-  CardPlay,
   GameSnapshot,
   ScoreDetail,
 } from "@blitzlord/shared";
+import { isDoudizhuSnapshot } from "@blitzlord/shared/games/doudizhu";
 import PlayerHand from "./PlayerHand";
 import OpponentArea from "./OpponentArea";
 import PlayedCards from "./PlayedCards";
@@ -26,37 +20,31 @@ import CallLandlord from "./CallLandlord";
 import ScoreBoard from "./ScoreBoard";
 import CardComponent from "./CardComponent";
 import CardTrackerPanel from "./CardTrackerPanel";
-import {
-  buildTrackerPassEntry,
-  buildTrackerPlayUpdate,
-  buildTrackerStateForGameStart,
-  buildTrackerStateForLandlordDecision,
-} from "./trackerState";
 
-export default function GameBoard() {
-  const { roomId } = useParams<{ roomId: string }>();
-  const navigate = useNavigate();
+interface GameBoardProps {
+  roomId: string;
+}
+
+export default function GameBoard({ roomId }: GameBoardProps) {
   const token =
     useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
-  const [lastPassPlayerId, setLastPassPlayerId] = useState<string | null>(null);
-  const setCurrentRoom = useRoomStore((s) => s.setCurrentRoom);
 
-  const phase = useGameStore((s) => s.phase);
-  const myRole = useGameStore((s) => s.myRole);
-  const currentTurn = useGameStore((s) => s.currentTurn);
-  const lastPlay = useGameStore((s) => s.lastPlay);
-  const bottomCards = useGameStore((s) => s.bottomCards);
-  const baseBid = useGameStore((s) => s.baseBid);
-  const bombCount = useGameStore((s) => s.bombCount);
-  const rocketUsed = useGameStore((s) => s.rocketUsed);
-  const players = useGameStore((s) => s.players);
-  const tracker = useGameStore((s) => s.tracker);
-  const isTrackerOpen = useGameStore((s) => s.isTrackerOpen);
-  const wildcardRank = useGameStore((s) => s.wildcardRank);
-  const gameResult = useGameStore((s) => s.gameResult);
-  const errorMessage = useGameStore((s) => s.errorMessage);
-  const setErrorMessage = useGameStore((s) => s.setErrorMessage);
-  const toggleTrackerPanel = useGameStore((s) => s.toggleTrackerPanel);
+  const phase = useDoudizhuGameStore((s) => s.phase);
+  const myRole = useDoudizhuGameStore((s) => s.myRole);
+  const currentTurn = useDoudizhuGameStore((s) => s.currentTurn);
+  const lastPlay = useDoudizhuGameStore((s) => s.lastPlay);
+  const bottomCards = useDoudizhuGameStore((s) => s.bottomCards);
+  const baseBid = useDoudizhuGameStore((s) => s.baseBid);
+  const bombCount = useDoudizhuGameStore((s) => s.bombCount);
+  const rocketUsed = useDoudizhuGameStore((s) => s.rocketUsed);
+  const players = useDoudizhuGameStore((s) => s.players);
+  const tracker = useDoudizhuGameStore((s) => s.tracker);
+  const isTrackerOpen = useDoudizhuGameStore((s) => s.isTrackerOpen);
+  const wildcardRank = useDoudizhuGameStore((s) => s.wildcardRank);
+  const gameResult = useDoudizhuGameStore((s) => s.gameResult);
+  const errorMessage = useDoudizhuGameStore((s) => s.errorMessage);
+  const setErrorMessage = useDoudizhuGameStore((s) => s.setErrorMessage);
+  const toggleTrackerPanel = useDoudizhuGameStore((s) => s.toggleTrackerPanel);
 
   useEffect(() => {
     connectSocket();
@@ -65,163 +53,13 @@ export default function GameBoard() {
   useEffect(() => {
     const socket = getSocket();
 
-    if (!phase && roomId) {
-      socket.emit("room:requestSync", (res) => {
-        if (!res.ok || !res.room) {
-          socket.emit("game:requestSync");
-          return;
-        }
-
-        setCurrentRoom(res.room);
-        if (res.room.status !== RoomStatus.Playing) {
-          navigate(`/room/${res.room.roomId}`, { replace: true });
-          return;
-        }
-
-        socket.emit("game:requestSync");
-      });
-    }
-  }, [phase, roomId, navigate, setCurrentRoom]);
-
-  useEffect(() => {
-    const socket = getSocket();
-
     const onSyncState = (snapshot: GameSnapshot) => {
-      useGameStore.getState().syncState(snapshot);
-      setLastPassPlayerId(null);
-    };
-
-    const onGameStarted = (data: {
-      hand: Card[];
-      firstCaller: string;
-      players: { playerId: string; playerName: string; seatIndex: number }[];
-    }) => {
-      const store = useGameStore.getState();
-      const sortedHand = sortCards(data.hand);
-
-      store.resetGame();
-      store.setHand(sortedHand);
-      store.setPhase(GamePhase.Calling);
-      store.setCurrentTurn(data.firstCaller);
-      store.setPlayers(
-        data.players.map((p) => ({
-          playerId: p.playerId,
-          playerName: p.playerName,
-          role: null,
-          cardCount: 17,
-          isOnline: true,
-        })),
-      );
-      store.syncTracker(buildTrackerStateForGameStart(sortedHand));
-      setLastPassPlayerId(null);
-    };
-
-    const onCallUpdate = (data: {
-      playerId: string;
-      bid: 0 | 1 | 2 | 3;
-      nextCaller: string | null;
-    }) => {
-      const store = useGameStore.getState();
-      store.addCallRecord({ playerId: data.playerId, bid: data.bid });
-      store.setCurrentTurn(data.nextCaller);
-    };
-
-    const onLandlordDecided = (data: {
-      landlordId: string;
-      bottomCards: Card[];
-      baseBid: 1 | 2 | 3;
-      wildcardRank: import("@blitzlord/shared").Rank | null;
-    }) => {
-      const store = useGameStore.getState();
-      const trackerState = buildTrackerStateForLandlordDecision({
-        token,
-        landlordId: data.landlordId,
-        myHand: store.myHand,
-        bottomCards: data.bottomCards,
-        history: store.tracker.history,
-      });
-
-      store.setBottomCards(data.bottomCards);
-      store.setBaseBid(data.baseBid);
-      store.setWildcardRank(data.wildcardRank ?? null);
-      store.setPhase(GamePhase.Playing);
-      store.setPlayers(
-        store.players.map((player) => ({
-          ...player,
-          role:
-            player.playerId === data.landlordId
-              ? PlayerRole.Landlord
-              : PlayerRole.Peasant,
-          cardCount:
-            player.playerId === data.landlordId ? 20 : player.cardCount,
-        })),
-      );
-
-      if (data.landlordId === token) {
-        store.setMyRole(PlayerRole.Landlord);
-        store.setHand(trackerState.nextHand);
-      } else {
-        store.setMyRole(PlayerRole.Peasant);
-      }
-
-      store.syncTracker(trackerState.tracker);
-      store.setCurrentTurn(data.landlordId);
-    };
-
-    const onTurnChanged = (data: { currentTurn: string }) => {
-      useGameStore.getState().setCurrentTurn(data.currentTurn);
-    };
-
-    const onCardsPlayed = (data: {
-      playerId: string;
-      play: CardPlay;
-      remainingCards: number;
-    }) => {
-      const store = useGameStore.getState();
-      const trackerUpdate = buildTrackerPlayUpdate({
-        token,
-        playerId: data.playerId,
-        myHand: store.myHand,
-        tracker: store.tracker,
-        lastPlay: store.lastPlay,
-        play: data.play,
-      });
-
-      store.setLastPlay({ playerId: data.playerId, play: data.play });
-      setLastPassPlayerId(null);
-      store.updatePlayerCardCount(data.playerId, data.remainingCards);
-      store.appendTrackerPlay(
-        trackerUpdate.entry,
-        trackerUpdate.tracker.remainingByRank,
-      );
-
-      if (data.play.type === CardType.Bomb) {
-        store.setBombCount(store.bombCount + 1);
-      }
-      if (data.play.type === CardType.Rocket) {
-        store.setRocketUsed(true);
-      }
-      if (data.playerId === token) {
-        store.removeCardsFromHand(data.play.cards);
-      }
-    };
-
-    const onPassed = (data: { playerId: string; resetRound: boolean }) => {
-      const store = useGameStore.getState();
-      const trackerUpdate = buildTrackerPassEntry({
-        tracker: store.tracker,
-        playerId: data.playerId,
-      });
-
-      store.appendTrackerPass(trackerUpdate.entry);
-
-      if (data.resetRound) {
-        store.setLastPlay(null);
-        setLastPassPlayerId(null);
+      if (!isDoudizhuSnapshot(snapshot)) {
+        useDoudizhuGameStore.getState().setErrorMessage("收到不支持的游戏快照");
         return;
       }
 
-      setLastPassPlayerId(data.playerId);
+      useDoudizhuGameStore.getState().syncState(snapshot);
     };
 
     const onEnded = (data: {
@@ -229,49 +67,38 @@ export default function GameBoard() {
       winnerRole: PlayerRole;
       scores: Record<string, ScoreDetail>;
     }) => {
-      const store = useGameStore.getState();
+      const store = useDoudizhuGameStore.getState();
       store.setPhase(GamePhase.Ended);
       store.setGameResult(data);
     };
 
     const onPlayerDisconnected = (data: { playerId: string }) => {
-      useGameStore.getState().setPlayerOnline(data.playerId, false);
+      useDoudizhuGameStore.getState().setPlayerOnline(data.playerId, false);
     };
 
     const onPlayerReconnected = (data: { playerId: string }) => {
-      useGameStore.getState().setPlayerOnline(data.playerId, true);
+      useDoudizhuGameStore.getState().setPlayerOnline(data.playerId, true);
     };
 
     const onError = (data: { message: string }) => {
-      useGameStore.getState().setErrorMessage(data.message);
+      useDoudizhuGameStore.getState().setErrorMessage(data.message);
     };
 
-    socket.on("game:syncState", onSyncState);
-    socket.on("game:started", onGameStarted);
-    socket.on("game:callUpdate", onCallUpdate);
-    socket.on("game:landlordDecided", onLandlordDecided);
-    socket.on("game:turnChanged", onTurnChanged);
-    socket.on("game:cardsPlayed", onCardsPlayed);
-    socket.on("game:passed", onPassed);
-    socket.on("game:ended", onEnded);
+    socket.on("match:syncState", onSyncState);
+    socket.on("match:ended", onEnded);
     socket.on("player:disconnected", onPlayerDisconnected);
     socket.on("player:reconnected", onPlayerReconnected);
     socket.on("error", onError);
+    emitMatchRequestSync();
 
     return () => {
-      socket.off("game:syncState", onSyncState);
-      socket.off("game:started", onGameStarted);
-      socket.off("game:callUpdate", onCallUpdate);
-      socket.off("game:landlordDecided", onLandlordDecided);
-      socket.off("game:turnChanged", onTurnChanged);
-      socket.off("game:cardsPlayed", onCardsPlayed);
-      socket.off("game:passed", onPassed);
-      socket.off("game:ended", onEnded);
+      socket.off("match:syncState", onSyncState);
+      socket.off("match:ended", onEnded);
       socket.off("player:disconnected", onPlayerDisconnected);
       socket.off("player:reconnected", onPlayerReconnected);
       socket.off("error", onError);
     };
-  }, [token, roomId, navigate, setCurrentRoom]);
+  }, [roomId]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -305,6 +132,14 @@ export default function GameBoard() {
     () => [...tracker.history].reverse(),
     [tracker.history],
   );
+  const lastPassPlayerId = useMemo(() => {
+    const latestEntry = tracker.history.at(-1);
+    if (!latestEntry || latestEntry.action !== "pass" || lastPlay === null) {
+      return null;
+    }
+
+    return latestEntry.playerId;
+  }, [lastPlay, tracker.history]);
   const isMyTurn = currentTurn === token;
   const canPass =
     phase === GamePhase.Playing &&

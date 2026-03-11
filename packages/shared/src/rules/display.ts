@@ -2,8 +2,23 @@ import { WILDCARD_SEQUENCE_RANKS } from "../constants/card.js";
 import { CardType, Rank, type Card, type CardPlay } from "../types/card.js";
 import { identifyCardType } from "./cardType.js";
 
-function cloneCards(cards: Card[]): Card[] {
-  return cards.map((card) => ({ ...card }));
+export type DisplayCard = Card & {
+  isWildcard?: boolean;
+};
+
+function cloneCards(
+  cards: Array<Card | DisplayCard>,
+  wildcardRank?: Rank | null,
+): DisplayCard[] {
+  return cards.map((card) => ({
+    ...card,
+    isWildcard:
+      "isWildcard" in card
+        ? card.isWildcard
+        : wildcardRank != null && card.rank === wildcardRank
+        ? true
+        : undefined,
+  }));
 }
 
 function countRanks(cards: Card[]): Map<Rank, number> {
@@ -197,7 +212,7 @@ function getRelevantRanks(play: CardPlay, wildcardRank: Rank): Rank[] {
   return ordered;
 }
 
-function orderDisplayCards(cards: Card[], play: CardPlay): Card[] {
+function orderDisplayCards(cards: DisplayCard[], play: CardPlay): DisplayCard[] {
   if (
     play.length == null ||
     !(
@@ -231,24 +246,24 @@ function orderDisplayCards(cards: Card[], play: CardPlay): Card[] {
 export function getDisplayCardsForPlay(
   play: CardPlay,
   wildcardRank?: Rank | null,
-): Card[] {
+): DisplayCard[] {
   if (
     wildcardRank == null ||
     !play.cards.some((card) => card.rank === wildcardRank)
   ) {
-    return cloneCards(play.cards);
+    return cloneCards(play.cards, wildcardRank);
   }
 
   const wildcardIndexes = play.cards.flatMap((card, index) =>
     card.rank === wildcardRank ? [index] : [],
   );
   if (wildcardIndexes.length === 0) {
-    return cloneCards(play.cards);
+    return cloneCards(play.cards, wildcardRank);
   }
 
-  const candidate = cloneCards(play.cards);
+  const candidate = cloneCards(play.cards, wildcardRank);
   const ranksToTry = getRelevantRanks(play, wildcardRank);
-  let bestCards: Card[] | null = null;
+  let bestCards: DisplayCard[] | null = null;
   let bestCost = Infinity;
 
   const search = (cursor: number, changedCount: number) => {
@@ -268,29 +283,33 @@ export function getDisplayCardsForPlay(
     const sourceCard = play.cards[targetIndex];
 
     for (const rank of ranksToTry) {
-      candidate[targetIndex] = { suit: sourceCard.suit, rank };
+      candidate[targetIndex] = {
+        suit: sourceCard.suit,
+        rank,
+        isWildcard: true,
+      };
       search(cursor + 1, changedCount + (rank === wildcardRank ? 0 : 1));
     }
   };
 
   search(0, 0);
-  return orderDisplayCards(bestCards ?? cloneCards(play.cards), play);
+  return orderDisplayCards(bestCards ?? cloneCards(play.cards, wildcardRank), play);
 }
 
 export function getDisplayCardsForCards(
   cards: Card[],
   wildcardRank?: Rank | null,
-): Card[] {
+): DisplayCard[] {
   if (
     wildcardRank == null ||
     !cards.some((card) => card.rank === wildcardRank)
   ) {
-    return cloneCards(cards);
+    return cloneCards(cards, wildcardRank);
   }
 
   const play = identifyCardType(cards, wildcardRank);
   if (play === null) {
-    return cloneCards(cards);
+    return cloneCards(cards, wildcardRank);
   }
 
   return getDisplayCardsForPlay(play, wildcardRank);

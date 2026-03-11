@@ -51,6 +51,7 @@ describe("PlayedCards", () => {
     expect(html).toContain("Bob");
     expect(html).toContain(">A<");
     expect(html).not.toContain(">7<");
+    expect(html).toContain("card-shell--wildcard");
   });
 
   it("renders transformed wildcard cards for straights", () => {
@@ -69,5 +70,6 @@ describe("PlayedCards", () => {
     expect(html).toContain("Bob");
     expect(countOccurrences(html, ">4<")).toBe(2);
     expect(countOccurrences(html, ">7<")).toBe(2);
+    expect(countOccurrences(html, "card-shell--wildcard")).toBe(2);
   });
 });

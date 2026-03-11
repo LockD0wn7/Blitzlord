@@ -65,6 +65,7 @@ describe("CardTrackerPanel", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('aria-modal="true"');
     expect(html).not.toContain('aria-hidden="true"');
+    expect(html).toContain("tracker-panel__body");
     expect(html).toContain("Round 2");
   });
 
@@ -94,5 +95,6 @@ describe("CardTrackerPanel", () => {
     expect(html).toContain("Bob");
     expect(html).toContain(">A<");
     expect(html).not.toContain(">7<");
+    expect(html).toContain("card-shell--wildcard");
   });
 });

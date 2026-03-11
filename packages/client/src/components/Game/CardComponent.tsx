@@ -1,5 +1,5 @@
 import type { Card } from "@blitzlord/shared";
-import { Suit, Rank, RANK_NAMES, SUIT_SYMBOLS } from "@blitzlord/shared";
+import { Rank, RANK_NAMES, SUIT_SYMBOLS, Suit } from "@blitzlord/shared";
 
 interface CardComponentProps {
   card: Card;
@@ -27,66 +27,40 @@ export default function CardComponent({
   const color = getSuitColor(card.suit, card.rank);
   const rankName = RANK_NAMES[card.rank];
   const suitSymbol = card.suit ? SUIT_SYMBOLS[card.suit] : "";
+  const className = [
+    "card-shell",
+    small ? "card-shell--small" : "card-shell--hand",
+    selected ? "card-shell--selected" : "",
+    isWildcard ? "card-shell--wildcard" : "",
+    onClick ? "card-shell--interactive" : "",
+    isJoker ? "card-shell--joker" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div
-      onClick={onClick}
-      className={`
-        relative inline-flex flex-col items-center justify-start
-        bg-gradient-to-br from-card to-card-dim
-        rounded-lg border border-card-border/60
-        select-none transition-all duration-200 ease-out
-        ${small ? "w-10 h-14 text-xs" : "w-14 h-20 text-sm"}
-        ${
-          selected
-            ? "-translate-y-3 shadow-[0_4px_12px_rgba(0,0,0,0.25)] ring-2 ring-gold/80"
-            : isWildcard
-            ? "ring-2 ring-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.3)]"
-            : "shadow-[0_2px_6px_rgba(0,0,0,0.15),_0_6px_16px_rgba(0,0,0,0.08)]"
-        }
-        ${
-          onClick
-            ? "cursor-pointer hover:-translate-y-1 hover:shadow-[0_4px_12px_rgba(0,0,0,0.2),_0_10px_24px_rgba(0,0,0,0.12)]"
-            : ""
-        }
-      `}
-    >
-      {isWildcard && (
-        <span className="absolute -top-1.5 -right-1.5 z-10 rounded-full bg-yellow-400 px-1 text-[0.5rem] font-bold leading-tight text-black">
-          赖
-        </span>
-      )}
+    <div className={className} onClick={onClick}>
+      {isWildcard && <span className="card-shell__badge">{"\u8d56"}</span>}
+
       {isJoker ? (
-        <div
-          className={`flex flex-col items-center justify-center h-full ${color} font-bold`}
-        >
-          <span className={small ? "text-xs" : "text-sm"}>{rankName}</span>
+        <div className={`card-shell__joker ${color}`}>
+          <span className="card-shell__jokerMark">J</span>
+          <span className="card-shell__jokerLabel">{rankName}</span>
         </div>
       ) : (
         <>
-          <div
-            className={`self-start ${color} font-bold ${
-              small ? "ml-0.5 mt-0.5" : "ml-1.5 mt-1"
-            }`}
-          >
-            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
-              {rankName}
-            </div>
-            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
-              {suitSymbol}
-            </div>
+          <div className={`card-shell__corner card-shell__corner--top ${color}`}>
+            <div className="card-shell__rank">{rankName}</div>
+            <div className="card-shell__suit">{suitSymbol}</div>
           </div>
-          <div
-            className={`absolute bottom-0 right-0 ${color} font-bold rotate-180 ${
-              small ? "mr-0.5 mb-0.5" : "mr-1.5 mb-1"
-            }`}
-          >
-            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
-              {rankName}
-            </div>
-            <div className={`${small ? "text-xs" : "text-sm"} leading-tight`}>
-              {suitSymbol}
-            </div>
+
+          <div className={`card-shell__sigil ${color}`} aria-hidden="true">
+            {suitSymbol}
+          </div>
+
+          <div className={`card-shell__corner card-shell__corner--bottom ${color}`}>
+            <div className="card-shell__rank">{rankName}</div>
+            <div className="card-shell__suit">{suitSymbol}</div>
           </div>
         </>
       )}

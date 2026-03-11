@@ -15,7 +15,7 @@ describe("getDisplayCardsForPlay", () => {
 
     expect(getDisplayCardsForPlay(play, Rank.Seven)).toEqual([
       { rank: Rank.Ace, suit: Suit.Spade },
-      { rank: Rank.Ace, suit: Suit.Heart },
+      { rank: Rank.Ace, suit: Suit.Heart, isWildcard: true },
     ]);
   });
 
@@ -33,14 +33,15 @@ describe("getDisplayCardsForPlay", () => {
       ],
     };
 
-    expect(
-      getDisplayCardsForPlay(play, Rank.Seven).map((card) => card.rank),
-    ).toEqual([
+    const result = getDisplayCardsForPlay(play, Rank.Seven);
+
+    expect(result.map((card) => card.rank)).toEqual([
       Rank.Three,
       Rank.Four,
       Rank.Five,
       Rank.Six,
       Rank.Seven,
     ]);
+    expect(result.filter((card) => card.isWildcard)).toHaveLength(2);
   });
 });

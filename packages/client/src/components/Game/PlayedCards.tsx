@@ -38,7 +38,7 @@ export default function PlayedCards({
                   key={`${card.rank}-${card.suit}-${index}`}
                   className="-ml-1 first:ml-0"
                 >
-                  <CardComponent card={card} small />
+                  <CardComponent card={card} small isWildcard={card.isWildcard} />
                 </div>
               ))}
             </div>
@@ -67,7 +67,7 @@ export default function PlayedCards({
             key={`${card.rank}-${card.suit}-${index}`}
             className="-ml-1 first:ml-0"
           >
-            <CardComponent card={card} small />
+            <CardComponent card={card} small isWildcard={card.isWildcard} />
           </div>
         ))}
       </div>

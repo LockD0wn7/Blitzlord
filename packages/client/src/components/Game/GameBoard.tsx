@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 import { useDoudizhuGameStore } from "../../games/doudizhu/store/useDoudizhuGameStore";
 import { useSocketStore } from "../../store/useSocketStore";
 import { getSocket, connectSocket, emitMatchRequestSync } from "../../socket";
@@ -25,6 +25,10 @@ interface GameBoardProps {
   roomId: string;
 }
 
+export function prepareDoudizhuBoardEntry(): void {
+  useDoudizhuGameStore.getState().resetGame();
+}
+
 export default function GameBoard({ roomId }: GameBoardProps) {
   const token =
     useSocketStore((s) => s.token) || localStorage.getItem("playerId") || "";
@@ -45,6 +49,10 @@ export default function GameBoard({ roomId }: GameBoardProps) {
   const errorMessage = useDoudizhuGameStore((s) => s.errorMessage);
   const setErrorMessage = useDoudizhuGameStore((s) => s.setErrorMessage);
   const toggleTrackerPanel = useDoudizhuGameStore((s) => s.toggleTrackerPanel);
+
+  useLayoutEffect(() => {
+    prepareDoudizhuBoardEntry();
+  }, [roomId]);
 
   useEffect(() => {
     connectSocket();

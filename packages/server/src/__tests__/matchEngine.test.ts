@@ -42,6 +42,24 @@ describe("MatchEngine", () => {
     expect(match.getFullState(caller).modeId).toBe("classic");
   });
 
+  it("keeps classic mode behavior even if config conflicts with the mode defaults", () => {
+    const registry = createServerGameRegistry();
+    const match = registry.createMatchEngine("room-1", PLAYERS, {
+      ...createSelection("classic"),
+      config: { wildcard: true },
+    });
+
+    const caller = match.currentCallerId!;
+    const result = match.dispatch({
+      type: "callBid",
+      playerId: caller,
+      bid: 3,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.landlord?.wildcardRank).toBeNull();
+  });
+
   it("creates a wildcard doudizhu match from room selection", () => {
     const registry = createServerGameRegistry();
     const match = registry.createMatchEngine("room-1", PLAYERS, createSelection("wildcard"));

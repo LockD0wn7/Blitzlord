@@ -4,6 +4,14 @@ import type { RoomGameSelection } from "../room/Room.js";
 import { MatchEngine, type MatchRuntime } from "./MatchEngine.js";
 import type { MatchPlayer } from "./types.js";
 
+function asConfigRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return { ...(value as Record<string, unknown>) };
+}
+
 export interface ServerRegisteredGame {
   gameId: string;
   createRuntime: (
@@ -39,8 +47,19 @@ export class ServerGameRegistry {
       throw new Error(`Unsupported mode: ${selection.gameId}/${selection.modeId}`);
     }
 
+    const normalizedSelection: RoomGameSelection = {
+      gameId: selection.gameId,
+      gameName: selection.gameName,
+      modeId: selection.modeId,
+      modeName: selection.modeName,
+      config: {
+        ...asConfigRecord(selection.config),
+        ...asConfigRecord(modeDefinition.defaultConfig),
+      },
+    };
+
     return new MatchEngine(
-      registeredGame.createRuntime(roomId, players, selection),
+      registeredGame.createRuntime(roomId, players, normalizedSelection),
     );
   }
 }

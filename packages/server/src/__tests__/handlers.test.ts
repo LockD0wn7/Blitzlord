@@ -378,6 +378,30 @@ describe("Socket handlers 集成测试", () => {
       expect(syncResult.room?.modeId).toBe("classic");
     });
 
+    it("normalizes room config so mode defaults cannot be overridden by create payload", async () => {
+      const { client: c1 } = await createRoomWithClient(
+        "token-rx1",
+        "Alice",
+        "Config Normalization Room",
+        {
+          modeId: "classic",
+          config: { wildcard: true },
+        },
+      );
+
+      const syncResult = await new Promise<{
+        ok: boolean;
+        room?: RoomDetail;
+        error?: string;
+      }>((resolve) => {
+        c1.emit("room:requestSync", resolve);
+      });
+
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.room?.modeId).toBe("classic");
+      expect(syncResult.room?.configSummary).toEqual({ wildcard: false });
+    });
+
     it("游戏结束后 room:requestSync 应返回重置后的等待房间", async () => {
       const { client: c1, roomId } = await createRoomWithClient("token-r2", "Alice", "结算同步");
       const c2 = await joinRoom("token-r3", "Bob", roomId);

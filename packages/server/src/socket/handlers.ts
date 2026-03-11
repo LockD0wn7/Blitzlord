@@ -55,8 +55,8 @@ function resolveSelection(gameId: string, modeId: string, config?: Record<string
     modeId: mode.modeId,
     modeName: mode.modeName,
     config: {
-      ...asConfigRecord(mode.defaultConfig),
       ...(config ?? {}),
+      ...asConfigRecord(mode.defaultConfig),
     },
   };
 }
@@ -88,6 +88,7 @@ function resolveSelectionFromPatch(
     config: {
       ...baseConfig,
       ...(data.configPatch ?? {}),
+      ...asConfigRecord(mode.defaultConfig),
     },
   };
 }

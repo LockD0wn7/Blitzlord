@@ -14,6 +14,32 @@ interface GameShellViewProps {
   registry?: ClientGameRegistryLike;
 }
 
+export function resolveGameShellRedirect(params: {
+  requestedRoomId: string;
+  syncedRoom:
+    | {
+        roomId: string;
+        status: RoomStatus;
+      }
+    | null;
+}): string | null {
+  const { requestedRoomId, syncedRoom } = params;
+
+  if (!syncedRoom) {
+    return "/lobby";
+  }
+
+  if (syncedRoom.status !== RoomStatus.Playing) {
+    return `/room/${syncedRoom.roomId}`;
+  }
+
+  if (syncedRoom.roomId !== requestedRoomId) {
+    return `/game/${syncedRoom.roomId}`;
+  }
+
+  return null;
+}
+
 export function GameShellView({
   roomId,
   gameId,
@@ -63,8 +89,12 @@ export default function GameShell() {
       }
 
       setCurrentRoom(result.room);
-      if (result.room.status !== RoomStatus.Playing) {
-        navigate(`/room/${result.room.roomId}`, { replace: true });
+      const redirectPath = resolveGameShellRedirect({
+        requestedRoomId: roomId,
+        syncedRoom: result.room,
+      });
+      if (redirectPath) {
+        navigate(redirectPath, { replace: true });
       }
     });
   }, [currentRoom, navigate, roomId, setCurrentRoom]);

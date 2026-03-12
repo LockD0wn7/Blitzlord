@@ -7,7 +7,7 @@ export type MatchActionData =
   | { type: "playCards"; cards: Card[] }
   | { type: "pass" };
 
-/** 客户端 → 服务端事件 */
+/** 客户端 -> 服务端事件 */
 export interface ClientEvents {
   "room:create": (
     data: {
@@ -26,6 +26,15 @@ export interface ClientEvents {
   ) => void;
 
   "room:leave": () => void;
+
+  "room:addBot": (
+    callback: (res: { ok: boolean; error?: string; playerId?: string }) => void,
+  ) => void;
+
+  "room:removeBot": (
+    data: { playerId: string },
+    callback: (res: { ok: boolean; error?: string }) => void,
+  ) => void;
 
   "room:list": (
     callback: (rooms: RoomInfo[]) => void,
@@ -55,7 +64,7 @@ export interface ClientEvents {
   ) => void;
 }
 
-/** 服务端 → 客户端事件 */
+/** 服务端 -> 客户端事件 */
 export interface ServerEvents {
   "room:updated": (room: RoomDetail) => void;
 

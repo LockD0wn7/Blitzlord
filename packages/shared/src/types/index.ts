@@ -13,6 +13,6 @@ export type {
 } from "./game.js";
 
 export { RoomStatus } from "./room.js";
-export type { RoomPlayer, RoomInfo, RoomDetail } from "./room.js";
+export type { PlayerType, RoomPlayer, RoomInfo, RoomDetail } from "./room.js";
 
 export type { ClientEvents, MatchActionData, ServerEvents } from "./events.js";

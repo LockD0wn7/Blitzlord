@@ -4,9 +4,12 @@ export enum RoomStatus {
   Finished = "finished",
 }
 
+export type PlayerType = "human" | "bot";
+
 export interface RoomPlayer {
   playerId: string;
   playerName: string;
+  playerType: PlayerType;
   isReady: boolean;
   isOnline: boolean;
   seatIndex: number;

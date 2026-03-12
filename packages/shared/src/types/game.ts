@@ -1,4 +1,5 @@
 import type { Card, CardPlay, Rank } from "./card.js";
+import type { PlayerType } from "./room.js";
 
 export enum GamePhase {
   Dealing = "dealing",
@@ -15,6 +16,7 @@ export enum PlayerRole {
 export interface PlayerState {
   playerId: string;
   playerName: string;
+  playerType: PlayerType;
   hand: Card[];
   role: PlayerRole | null;
   isOnline: boolean;
@@ -85,6 +87,7 @@ export interface GameSnapshot {
   players: {
     playerId: string;
     playerName: string;
+    playerType: PlayerType;
     role: PlayerRole | null;
     cardCount: number; // 他人只能看到牌数
     isOnline: boolean;

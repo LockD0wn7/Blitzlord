@@ -11,9 +11,11 @@ import {
 import { doudizhuDefinition } from "@blitzlord/shared/games/doudizhu";
 import { SessionManager } from "../session/SessionManager.js";
 import { RoomManager } from "../room/RoomManager.js";
-import type { RoomGameSelection } from "../room/Room.js";
+import type { ConfigVoteResult, Room, RoomGameSelection } from "../room/Room.js";
 import type { MatchEngine } from "../platform/MatchEngine.js";
+import type { MatchAction } from "../platform/actionHandlers.js";
 import type { ServerGameRegistry } from "../platform/GameRegistry.js";
+import { BotController } from "../bot/BotController.js";
 
 type TypedServer = Server<ClientEvents, ServerEvents>;
 type TypedSocket = Socket<ClientEvents, ServerEvents>;
@@ -93,6 +95,30 @@ function resolveSelectionFromPatch(
   };
 }
 
+function emitConfigVoteResult(io: TypedServer, roomId: string, result: ConfigVoteResult): void {
+  io.to(roomId).emit("room:voteConfigChangeResult", {
+    passed: result.passed,
+    gameId: result.selection.gameId,
+    modeId: result.selection.modeId,
+    configPatch: result.selection.config,
+  });
+}
+
+function emitRoomUpdateAfterLeave(io: TypedServer, roomId: string, room: Room | undefined): void {
+  if (!room) {
+    return;
+  }
+
+  const voteResult = room.consumePendingConfigVoteResult();
+  if (voteResult) {
+    emitConfigVoteResult(io, roomId, voteResult);
+  }
+
+  if (room.playerCount > 0) {
+    io.to(roomId).emit("room:updated", room.toRoomDetail());
+  }
+}
+
 /**
  * 工厂函数：创建 Socket.IO 事件处理器。
  * 依赖注入，便于测试和替换。
@@ -103,18 +129,132 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
   /** playerId → 断线超时定时器 */
   const disconnectTimers = new Map<string, NodeJS.Timeout>();
 
+  function emitMatchSync(roomId: string, game: MatchEngine): void {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      return;
+    }
+
+    for (const player of room.players) {
+      const playerSession = sessionManager.getByToken(player.playerId);
+      if (!playerSession?.socketId) {
+        continue;
+      }
+
+      io.to(playerSession.socketId).emit("match:syncState", game.getFullState(player.playerId));
+    }
+  }
+
+  function startMatchIfReady(roomId: string): boolean {
+    const room = roomManager.getRoom(roomId);
+    if (!room || room.status !== RoomStatus.Waiting || !room.allReady) {
+      return false;
+    }
+
+    room.startPlaying();
+    io.to(roomId).emit("room:updated", room.toRoomDetail());
+
+    const gamePlayers = room.players.map((player) => ({
+      playerId: player.playerId,
+      playerName: player.playerName,
+      playerType: player.playerType,
+    }));
+
+    const game = gameRegistry.createMatchEngine(roomId, gamePlayers, room.gameSelection);
+    matches.set(roomId, game);
+    io.to(roomId).emit("match:started");
+    emitMatchSync(roomId, game);
+    io.emit("room:listUpdated", roomManager.listRooms());
+    return true;
+  }
+
+  let botController: BotController;
+
+  function dispatchPlayerAction(roomId: string, action: MatchAction): { ok: boolean; error?: string } {
+    const game = matches.get(roomId);
+    if (!game) {
+      return { ok: false, error: "娌℃湁杩涜涓殑娓告垙" };
+    }
+
+    switch (action.type) {
+      case "callBid": {
+        const result = game.dispatch(action);
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
+
+        emitMatchSync(roomId, game);
+        return { ok: true };
+      }
+
+      case "playCards": {
+        const result = game.dispatch(action);
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
+
+        if (result.gameEnd) {
+          io.to(roomId).emit("match:ended", result.gameEnd);
+
+          const room = roomManager.getRoom(roomId);
+          if (room) {
+            room.finishGame();
+            room.backToWaiting();
+          }
+
+          matches.delete(roomId);
+          botController.cancel(roomId);
+          io.emit("room:listUpdated", roomManager.listRooms());
+          return { ok: true };
+        }
+
+        emitMatchSync(roomId, game);
+        return { ok: true };
+      }
+
+      case "pass": {
+        const result = game.dispatch(action);
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
+
+        emitMatchSync(roomId, game);
+        return { ok: true };
+      }
+    }
+  }
+
+  function createBotIdentity(roomId: string): { playerId: string; playerName: string } {
+    const room = roomManager.getRoom(roomId);
+    let botIndex = 1;
+
+    while (room?.getPlayer(`bot:${roomId}:${botIndex}`)) {
+      botIndex += 1;
+    }
+
+    return {
+      playerId: `bot:${roomId}:${botIndex}`,
+      playerName: `Bot ${botIndex}`,
+    };
+  }
+
+  botController = new BotController({
+    roomManager,
+    matches,
+    dispatchAction: dispatchPlayerAction,
+  });
   return (socket: TypedSocket) => {
     const token = socket.handshake.auth.token as string | undefined;
     const playerName = socket.handshake.auth.playerName as string | undefined;
 
     if (!token || typeof token !== "string" || token.length > 100) {
-      socket.emit("error", { message: "无效的身份 token" });
+      socket.emit("error", { message: "Invalid session token." });
       socket.disconnect(true);
       return;
     }
 
     if (!playerName || typeof playerName !== "string" || playerName.trim().length === 0 || playerName.length > 20) {
-      socket.emit("error", { message: "无效的玩家昵称" });
+      socket.emit("error", { message: "Invalid player name." });
       socket.disconnect(true);
       return;
     }
@@ -193,7 +333,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("room:create", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session) {
-        callback({ ok: false, error: "未找到 session" });
+        callback({ ok: false, error: "Invalid session." });
         return;
       }
 
@@ -204,7 +344,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
 
       const roomName = typeof data.roomName === "string" ? data.roomName.trim().slice(0, 20) : "";
       if (!roomName) {
-        callback({ ok: false, error: "房间名不能为空" });
+        callback({ ok: false, error: "Room name is required." });
         return;
       }
 
@@ -225,12 +365,12 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("room:join", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session) {
-        callback({ ok: false, error: "未找到 session" });
+        callback({ ok: false, error: "Invalid session." });
         return;
       }
 
       if (session.roomId) {
-        callback({ ok: false, error: "你已经在一个房间中" });
+        callback({ ok: false, error: "Already in a room." });
         return;
       }
 
@@ -243,6 +383,55 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       session.roomId = data.roomId;
       socket.join(data.roomId);
       io.to(data.roomId).emit("room:updated", result.room.toRoomDetail());
+      io.emit("room:listUpdated", roomManager.listRooms());
+      callback({ ok: true });
+    });
+
+    // ==================== room:addBot ====================
+    socket.on("room:addBot", (callback) => {
+      const session = sessionManager.getBySocketId(socket.id);
+      if (!session || !session.roomId) {
+        callback({ ok: false, error: "Not in a room." });
+        return;
+      }
+
+      const room = roomManager.getRoom(session.roomId);
+      if (!room) {
+        callback({ ok: false, error: "Room does not exist." });
+        return;
+      }
+
+      const botIdentity = createBotIdentity(session.roomId);
+      const result = roomManager.addBot(session.roomId, botIdentity.playerId, botIdentity.playerName);
+      if (!result.ok) {
+        callback({ ok: false, error: result.error });
+        return;
+      }
+
+      io.to(session.roomId).emit("room:updated", result.room.toRoomDetail());
+      io.emit("room:listUpdated", roomManager.listRooms());
+      callback({ ok: true, playerId: botIdentity.playerId });
+
+      if (startMatchIfReady(session.roomId)) {
+        botController.scheduleIfNeeded(session.roomId);
+      }
+    });
+
+    // ==================== room:removeBot ====================
+    socket.on("room:removeBot", (data, callback) => {
+      const session = sessionManager.getBySocketId(socket.id);
+      if (!session || !session.roomId) {
+        callback({ ok: false, error: "Not in a room." });
+        return;
+      }
+
+      const result = roomManager.removeBot(session.roomId, data.playerId);
+      if (!result.ok) {
+        callback({ ok: false, error: result.error });
+        return;
+      }
+
+      io.to(session.roomId).emit("room:updated", result.room.toRoomDetail());
       io.emit("room:listUpdated", roomManager.listRooms());
       callback({ ok: true });
     });
@@ -284,15 +473,11 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       socket.leave(roomId);
 
       // 离开房间
+      botController.cancel(roomId);
       const room = roomManager.leaveRoom(roomId, playerId);
       session.roomId = null;
 
-      if (room) {
-        // 如果房间还存在（还有其他人），通知更新
-        if (room.playerCount > 0) {
-          io.to(roomId).emit("room:updated", room.toRoomDetail());
-        }
-      }
+      emitRoomUpdateAfterLeave(io, roomId, room);
       io.emit("room:listUpdated", roomManager.listRooms());
     });
 
@@ -305,80 +490,53 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("room:requestSync", (callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
+        callback({ ok: false, error: "Not in a room." });
         return;
       }
 
       const room = roomManager.getRoom(session.roomId);
       if (!room) {
-        callback({ ok: false, error: "房间不存在" });
+        callback({ ok: false, error: "Room does not exist." });
         return;
       }
 
       callback({ ok: true, room: room.toRoomDetail() });
     });
 
-    function emitMatchSync(roomId: string, game: MatchEngine): void {
-      const room = roomManager.getRoom(roomId);
-      if (!room) {
-        return;
-      }
-
-      for (const player of room.players) {
-        const playerSession = sessionManager.getByToken(player.playerId);
-        if (!playerSession?.socketId) {
-          continue;
-        }
-
-        io.to(playerSession.socketId).emit("match:syncState", game.getFullState(player.playerId));
-      }
-    }
 
     // ==================== match:ready ====================
     socket.on("match:ready", () => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        socket.emit("error", { message: "未在房间中" });
+        socket.emit("error", { message: "Not in a room." });
         return;
       }
 
       const room = roomManager.getRoom(session.roomId);
       if (!room) {
-        socket.emit("error", { message: "房间不存在" });
+        socket.emit("error", { message: "Room does not exist." });
         return;
       }
 
       if (room.status !== RoomStatus.Waiting) {
-        socket.emit("error", { message: "房间不在等待状态" });
+        socket.emit("error", { message: "Room is not waiting for ready state." });
         return;
       }
 
       room.setReady(session.playerId, true);
       io.to(session.roomId).emit("room:updated", room.toRoomDetail());
 
-      if (!room.allReady) {
+      if (!startMatchIfReady(session.roomId)) {
         return;
       }
 
-      room.startPlaying();
-      io.to(session.roomId).emit("room:updated", room.toRoomDetail());
-
-      const gamePlayers = room.players.map((player) => ({
-        playerId: player.playerId,
-        playerName: player.playerName,
-      }));
-
-      const game = gameRegistry.createMatchEngine(session.roomId, gamePlayers, room.gameSelection);
-      matches.set(session.roomId, game);
-      io.to(session.roomId).emit("match:started");
-      emitMatchSync(session.roomId, game);
-      io.emit("room:listUpdated", roomManager.listRooms());
+      botController.scheduleIfNeeded(session.roomId);
     });
 
     socket.on("match:action", (data: MatchActionData, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
+        callback({ ok: false, error: "Not in a room." });
         return;
       }
 
@@ -391,11 +549,11 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       switch (data.type) {
         case "callBid": {
           if (![0, 1, 2, 3].includes(data.bid)) {
-            callback({ ok: false, error: "无效的叫分值" });
+            callback({ ok: false, error: "Invalid bid." });
             return;
           }
 
-          const result = game.dispatch({
+          const result = dispatchPlayerAction(session.roomId, {
             type: "callBid",
             playerId: session.playerId,
             bid: data.bid,
@@ -406,15 +564,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           }
 
           callback({ ok: true });
-
-          const roomId = session.roomId;
-
-          if (result.redeal) {
-            emitMatchSync(roomId, game);
-            return;
-          }
-
-          emitMatchSync(roomId, game);
+          botController.scheduleIfNeeded(session.roomId);
           return;
         }
 
@@ -427,11 +577,11 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
                 !("rank" in card) || !("suit" in card),
             )
           ) {
-            callback({ ok: false, error: "无效的出牌数据" });
+            callback({ ok: false, error: "Invalid cards." });
             return;
           }
 
-          const result = game.dispatch({
+          const result = dispatchPlayerAction(session.roomId, {
             type: "playCards",
             playerId: session.playerId,
             cards: data.cards,
@@ -442,29 +592,12 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           }
 
           callback({ ok: true });
-
-          const roomId = session.roomId;
-
-          if (result.gameEnd) {
-            io.to(roomId).emit("match:ended", result.gameEnd);
-
-            const room = roomManager.getRoom(roomId);
-            if (room) {
-              room.finishGame();
-              room.backToWaiting();
-            }
-
-            matches.delete(roomId);
-            io.emit("room:listUpdated", roomManager.listRooms());
-            return;
-          }
-
-          emitMatchSync(roomId, game);
+          botController.scheduleIfNeeded(session.roomId);
           return;
         }
 
         case "pass": {
-          const result = game.dispatch({
+          const result = dispatchPlayerAction(session.roomId, {
             type: "pass",
             playerId: session.playerId,
           });
@@ -474,9 +607,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           }
 
           callback({ ok: true });
-
-          const roomId = session.roomId;
-          emitMatchSync(roomId, game);
+          botController.scheduleIfNeeded(session.roomId);
           return;
         }
       }
@@ -486,7 +617,7 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("match:requestSync", () => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        socket.emit("error", { message: "未在房间中" });
+        socket.emit("error", { message: "Not in a room." });
         return;
       }
 
@@ -503,18 +634,18 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("room:voteConfigChange", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
+        callback({ ok: false, error: "Not in a room." });
         return;
       }
 
       const room = roomManager.getRoom(session.roomId);
       if (!room) {
-        callback({ ok: false, error: "房间不存在" });
+        callback({ ok: false, error: "Room does not exist." });
         return;
       }
 
       if (room.status !== RoomStatus.Waiting && room.status !== RoomStatus.Finished) {
-        callback({ ok: false, error: "当前状态不能发起投票" });
+        callback({ ok: false, error: "Cannot change config while the room is playing." });
         return;
       }
 
@@ -530,12 +661,19 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
         return;
       }
 
-      io.to(session.roomId).emit("room:voteConfigChangeStarted", {
-        initiator: session.playerId,
-        gameId: data.gameId,
-        modeId: data.modeId,
-        configPatch: data.configPatch,
-      });
+      if (result.status === "started") {
+        io.to(session.roomId).emit("room:voteConfigChangeStarted", {
+          initiator: session.playerId,
+          gameId: data.gameId,
+          modeId: data.modeId,
+          configPatch: data.configPatch,
+        });
+      } else {
+        emitConfigVoteResult(io, session.roomId, result.result);
+        if (result.result.passed) {
+          io.to(session.roomId).emit("room:updated", room.toRoomDetail());
+        }
+      }
       callback({ ok: true });
     });
 
@@ -543,13 +681,13 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
     socket.on("room:voteConfigChangeVote", (data, callback) => {
       const session = sessionManager.getBySocketId(socket.id);
       if (!session || !session.roomId) {
-        callback({ ok: false, error: "未在房间中" });
+        callback({ ok: false, error: "Not in a room." });
         return;
       }
 
       const room = roomManager.getRoom(session.roomId);
       if (!room) {
-        callback({ ok: false, error: "房间不存在" });
+        callback({ ok: false, error: "Room does not exist." });
         return;
       }
 
@@ -635,12 +773,9 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
           if (currentRoom) {
             currentRoom.finishGame();
             currentRoom.backToWaiting();
-            // 移除断线玩家
-            roomManager.leaveRoom(roomId, session.playerId);
-            // R8: 断线超时后通知其他玩家房间状态更新
-            if (currentRoom.playerCount > 0) {
-              io.to(roomId).emit("room:updated", currentRoom.toRoomDetail());
-            }
+            botController.cancel(roomId);
+            const remainingRoom = roomManager.leaveRoom(roomId, session.playerId);
+            emitRoomUpdateAfterLeave(io, roomId, remainingRoom);
           }
           io.emit("room:listUpdated", roomManager.listRooms());
         }, DISCONNECT_TIMEOUT_MS);
@@ -649,12 +784,11 @@ export function createHandlers(deps: HandlerDeps): (socket: TypedSocket) => void
       } else {
         // 不在游戏中 → 直接离开房间
         room.setOnline(session.playerId, false);
-        roomManager.leaveRoom(roomId, session.playerId);
+        botController.cancel(roomId);
+        const remainingRoom = roomManager.leaveRoom(roomId, session.playerId);
         session.roomId = null;
 
-        if (room.playerCount > 0) {
-          io.to(roomId).emit("room:updated", room.toRoomDetail());
-        }
+        emitRoomUpdateAfterLeave(io, roomId, remainingRoom);
         io.emit("room:listUpdated", roomManager.listRooms());
       }
     });

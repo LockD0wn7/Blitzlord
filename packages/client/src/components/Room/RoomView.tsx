@@ -3,7 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { RoomStatus, type RoomDetail } from "@blitzlord/shared";
 import {
   connectSocket,
+  emitAddBot,
   emitMatchReady,
+  emitRemoveBot,
   emitVoteConfigChange,
   emitVoteConfigChangeVote,
   getSocket,
@@ -164,7 +166,7 @@ export default function RoomView() {
       { modeId: getNextModeId(currentRoom.modeId) },
       (response) => {
         if (!response.ok) {
-          setVoteNotice(response.error || "发起投票失败");
+          setVoteNotice(response.error || "移除机器人失败");
           window.setTimeout(() => setVoteNotice(null), 3000);
         }
       },
@@ -174,7 +176,25 @@ export default function RoomView() {
   const handleVote = useCallback((agree: boolean) => {
     emitVoteConfigChangeVote(agree, (response) => {
       if (!response.ok) {
-        setVoteNotice(response.error || "投票失败");
+        setVoteNotice(response.error || "移除机器人失败");
+        window.setTimeout(() => setVoteNotice(null), 3000);
+      }
+    });
+  }, []);
+
+  const handleAddBot = useCallback(() => {
+    emitAddBot((response) => {
+      if (!response.ok) {
+        setVoteNotice(response.error || "Failed to add bot");
+        window.setTimeout(() => setVoteNotice(null), 3000);
+      }
+    });
+  }, []);
+
+  const handleRemoveBot = useCallback((playerId: string) => {
+    emitRemoveBot(playerId, (response) => {
+      if (!response.ok) {
+        setVoteNotice(response.error || "Failed to remove bot");
         window.setTimeout(() => setVoteNotice(null), 3000);
       }
     });
@@ -186,6 +206,8 @@ export default function RoomView() {
   const canSwitchMode =
     currentRoom?.status === RoomStatus.Waiting ||
     currentRoom?.status === RoomStatus.Finished;
+  const canManageBots = currentRoom?.status === RoomStatus.Waiting;
+  const canAddBot = Boolean(canManageBots && currentRoom && currentRoom.players.length < currentRoom.maxPlayers);
   const currentModeLabel = currentRoom ? getModeLabel(currentRoom.modeId, currentRoom.modeName) : "经典模式";
   const nextModeLabel = currentRoom ? getModeLabel(getNextModeId(currentRoom.modeId)) : "赖子模式";
   const voteTargetLabel = getModeLabel(configVote?.modeId);
@@ -261,10 +283,15 @@ export default function RoomView() {
                   <div className="flex items-center gap-3">
                     <span className="text-muted text-sm w-12">座位 {seatIndex + 1}</span>
                     {player ? (
-                      <span className="text-warm font-medium">
-                        {player.playerName}
+                      <span className="flex items-center gap-2 text-warm font-medium">
+                        <span>{player.playerName}</span>
+                        {player.playerType === "bot" && (
+                          <span className="rounded bg-gold/15 px-2 py-0.5 text-[11px] font-semibold text-gold border border-gold/25">
+                            机器人
+                          </span>
+                        )}
                         {player.playerId === myPlayerId && (
-                          <span className="text-gold ml-2 text-sm">(我)</span>
+                          <span className="text-gold text-sm">(我)</span>
                         )}
                       </span>
                     ) : (
@@ -272,9 +299,20 @@ export default function RoomView() {
                     )}
                   </div>
                   {player && (
-                    <span className={`text-sm font-medium ${player.isReady ? "text-jade" : "text-muted"}`}>
-                      {player.isReady ? "已准备" : "未准备"}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-sm font-medium ${player.isReady ? "text-jade" : "text-muted"}`}>
+                        {player.isReady ? "已准备" : "未准备"}
+                      </span>
+                      {canManageBots && player.playerType === "bot" && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBot(player.playerId)}
+                          className="rounded-lg border border-crimson/30 px-2.5 py-1 text-xs text-crimson transition-colors hover:bg-crimson/10"
+                        >
+                          移除
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -296,6 +334,15 @@ export default function RoomView() {
               {isReady ? "已准备" : "准备"}
             </button>
           </div>
+
+          {canAddBot && (
+            <button
+              onClick={handleAddBot}
+              className="btn-ghost w-full mt-3 py-2.5 rounded-xl text-sm"
+            >
+              添加机器人
+            </button>
+          )}
 
           {canSwitchMode && !configVote && currentRoom && (
             <button

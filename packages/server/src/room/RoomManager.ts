@@ -47,14 +47,35 @@ export class RoomManager {
     return { ok: true, room, seatIndex };
   }
 
+  addBot(
+    roomId: string,
+    botId: string,
+    botName: string,
+  ): { ok: true; room: Room; seatIndex: number } | { ok: false; error: string } {
+    const room = this.rooms.get(roomId);
+    if (!room) return { ok: false, error: "Room does not exist." };
+    if (room.status !== RoomStatus.Waiting) return { ok: false, error: "Room has already started." };
+    if (room.getPlayer(botId)) return { ok: false, error: "Player is already in the room." };
+
+    const seatIndex = room.addPlayer(botId, botName, "bot");
+    if (seatIndex === null) return { ok: false, error: "Room is full." };
+
+    return { ok: true, room, seatIndex };
+  }
+
   leaveRoom(roomId: string, playerId: string): Room | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
 
-    room.removePlayer(playerId);
+    const removed = room.removePlayer(playerId);
+    if (!removed) {
+      return room;
+    }
 
-    if (room.playerCount === 0) {
+    const hasHumanPlayer = room.players.some((player) => player.playerType === "human");
+    if (!hasHumanPlayer) {
       this.rooms.delete(roomId);
+      return undefined;
     }
 
     return room;
@@ -69,7 +90,21 @@ export class RoomManager {
     return undefined;
   }
 
+  removeBot(roomId: string, playerId: string): { ok: true; room: Room } | { ok: false; error: string } {
+    const room = this.rooms.get(roomId);
+    if (!room) return { ok: false, error: "Room does not exist." };
+    if (room.status !== RoomStatus.Waiting) return { ok: false, error: "Room has already started." };
+
+    const player = room.getPlayer(playerId);
+    if (!player) return { ok: false, error: "Player is not in the room." };
+    if (player.playerType !== "bot") return { ok: false, error: "Player is not a bot." };
+
+    room.removePlayer(playerId);
+    return { ok: true, room };
+  }
+
   removeRoom(roomId: string): void {
     this.rooms.delete(roomId);
   }
 }
+

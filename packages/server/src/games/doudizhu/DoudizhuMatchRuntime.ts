@@ -61,6 +61,7 @@ export class DoudizhuMatchRuntime {
       players: players.map((p) => ({
         playerId: p.playerId,
         playerName: p.playerName,
+        playerType: p.playerType,
         hand: [],
         role: null,
         isOnline: true,
@@ -565,6 +566,7 @@ export class DoudizhuMatchRuntime {
       players: this.state.players.map((p) => ({
         playerId: p.playerId,
         playerName: p.playerName,
+        playerType: p.playerType,
         role: p.role,
         cardCount: p.hand.length,
         isOnline: p.isOnline,

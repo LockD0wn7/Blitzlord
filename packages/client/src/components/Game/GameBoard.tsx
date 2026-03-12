@@ -131,7 +131,7 @@ export default function GameBoard({ roomId }: GameBoardProps) {
   const playerNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const player of players) {
-      map[player.playerId] = player.playerName;
+      map[player.playerId] = player.playerType === "bot" ? `${player.playerName} [BOT]` : player.playerName;
     }
     return map;
   }, [players]);
@@ -220,7 +220,7 @@ export default function GameBoard({ roomId }: GameBoardProps) {
       <div className="relative z-10 flex justify-between px-8 pt-4 pb-2">
         {opponents.left && (
           <OpponentArea
-            playerName={opponents.left.playerName}
+            playerName={opponents.left.playerType === "bot" ? `${opponents.left.playerName} [BOT]` : opponents.left.playerName}
             cardCount={opponents.left.cardCount}
             role={opponents.left.role}
             isOnline={opponents.left.isOnline}
@@ -231,7 +231,7 @@ export default function GameBoard({ roomId }: GameBoardProps) {
 
         {opponents.right && (
           <OpponentArea
-            playerName={opponents.right.playerName}
+            playerName={opponents.right.playerType === "bot" ? `${opponents.right.playerName} [BOT]` : opponents.right.playerName}
             cardCount={opponents.right.cardCount}
             role={opponents.right.role}
             isOnline={opponents.right.isOnline}

@@ -14,8 +14,10 @@ export default function ScoreBoard() {
   if (!gameResult) return null;
 
   const { winnerId, winnerRole, scores } = gameResult;
-  const winnerName =
-    players.find((p) => p.playerId === winnerId)?.playerName || "玩家";
+  const winnerPlayer = players.find((p) => p.playerId === winnerId);
+  const winnerName = winnerPlayer
+    ? winnerPlayer.playerType === "bot" ? `${winnerPlayer.playerName} [BOT]` : winnerPlayer.playerName
+    : "Player";
 
   // 获取一个 scoreDetail 来显示倍率明细（所有人倍率一样，只是正负不同）
   const sampleScore = Object.values(scores)[0];
@@ -86,7 +88,7 @@ export default function ScoreBoard() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-warm font-medium">
-                    {player.playerName}
+                    {player.playerType === "bot" ? `${player.playerName} [BOT]` : player.playerName}
                   </span>
                   {player.role === PlayerRole.Landlord && (
                     <span className="text-gold text-xs font-bold">[地主]</span>

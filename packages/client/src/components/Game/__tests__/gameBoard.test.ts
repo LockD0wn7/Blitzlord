@@ -35,6 +35,7 @@ describe("GameBoard room entry", () => {
         role: PlayerRole.Landlord,
         cardCount: 0,
         isOnline: true,
+        playerType: "human",
       },
     ]);
     store.setGameResult({

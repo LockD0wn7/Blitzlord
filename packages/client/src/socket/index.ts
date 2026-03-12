@@ -106,6 +106,19 @@ export function emitVoteConfigChangeVote(
   getSocket().emit("room:voteConfigChangeVote", { agree }, cb);
 }
 
+export function emitAddBot(
+  cb: (res: { ok: boolean; error?: string; playerId?: string }) => void,
+): void {
+  getSocket().emit("room:addBot", cb);
+}
+
+export function emitRemoveBot(
+  playerId: string,
+  cb: (res: { ok: boolean; error?: string }) => void,
+): void {
+  getSocket().emit("room:removeBot", { playerId }, cb);
+}
+
 export function emitMatchReady(): void {
   getSocket().emit("match:ready");
 }

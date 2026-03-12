@@ -13,6 +13,7 @@ import type { DoudizhuSnapshot } from "@blitzlord/shared/games/doudizhu";
 interface GamePlayer {
   playerId: string;
   playerName: string;
+  playerType: "human" | "bot";
   role: PlayerRole | null;
   cardCount: number;
   isOnline: boolean;

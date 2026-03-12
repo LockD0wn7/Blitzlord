@@ -39,6 +39,18 @@ describe("Room", () => {
       expect(room.playerCount).toBe(1);
     });
 
+    it("adds a bot as ready by default", () => {
+      const seat = room.addPlayer("bot-1", "Bot 1", "bot");
+
+      expect(seat).toBe(0);
+      expect(room.getPlayer("bot-1")).toMatchObject({
+        playerId: "bot-1",
+        playerName: "Bot 1",
+        playerType: "bot",
+        isReady: true,
+      });
+    });
+
     it("does not allow a fourth player", () => {
       room.addPlayer("p1", "Alice");
       room.addPlayer("p2", "Bob");
@@ -88,6 +100,16 @@ describe("Room", () => {
       expect(room.allReady).toBe(true);
     });
 
+    it("counts bot players as ready by default", () => {
+      room.addPlayer("p1", "Alice");
+      room.addPlayer("bot-1", "Bot 1", "bot");
+      room.addPlayer("bot-2", "Bot 2", "bot");
+
+      room.setReady("p1", true);
+
+      expect(room.allReady).toBe(true);
+    });
+
     it("does not report allReady when the room is not full", () => {
       room.addPlayer("p1", "Alice");
       room.setReady("p1", true);
@@ -107,8 +129,9 @@ describe("Room", () => {
       expect(room.status).toBe("finished");
     });
 
-    it("returns to waiting and resets readiness", () => {
+    it("returns to waiting with humans unready and bots still ready", () => {
       room.addPlayer("p1", "Alice");
+      room.addPlayer("bot-1", "Bot 1", "bot");
       room.setReady("p1", true);
       room.startPlaying();
       room.finishGame();
@@ -117,18 +140,18 @@ describe("Room", () => {
 
       expect(room.status).toBe("waiting");
       expect(room.getPlayer("p1")?.isReady).toBe(false);
+      expect(room.getPlayer("bot-1")?.isReady).toBe(true);
     });
 
-    it("resetReady clears readiness for every player", () => {
+    it("resetReady clears human readiness but preserves bot readiness", () => {
       room.addPlayer("p1", "Alice");
-      room.addPlayer("p2", "Bob");
+      room.addPlayer("bot-1", "Bot 1", "bot");
       room.setReady("p1", true);
-      room.setReady("p2", true);
 
       room.resetReady();
 
       expect(room.getPlayer("p1")?.isReady).toBe(false);
-      expect(room.getPlayer("p2")?.isReady).toBe(false);
+      expect(room.getPlayer("bot-1")?.isReady).toBe(true);
     });
   });
 
@@ -186,7 +209,7 @@ describe("Room", () => {
 
       const result = room.startConfigVote("p1", nextSelection);
 
-      expect(result.ok).toBe(true);
+      expect(result).toEqual({ ok: true, status: "started" });
       expect(room.configVote).not.toBeNull();
       expect(room.configVote?.initiator).toBe("p1");
       expect(room.configVote?.selection).toEqual(nextSelection);
@@ -199,7 +222,9 @@ describe("Room", () => {
       const result = room.startConfigVote("p2", createSelection({ modeId: "wildcard", config: { wildcard: true, jokerBomb: true } }));
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBeTruthy();
+      if (!result.ok) {
+        expect(result.error).toBeTruthy();
+      }
     });
 
     it("does not allow config votes during play", () => {
@@ -208,14 +233,18 @@ describe("Room", () => {
       const result = room.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBeTruthy();
+      if (!result.ok) {
+        expect(result.error).toBeTruthy();
+      }
     });
 
     it("rejects a vote that targets the current selection", () => {
       const result = room.startConfigVote("p1", createSelection());
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBeTruthy();
+      if (!result.ok) {
+        expect(result.error).toBeTruthy();
+      }
     });
 
     it("allows config votes after the match is finished", () => {
@@ -225,6 +254,26 @@ describe("Room", () => {
       const result = room.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
 
       expect(result.ok).toBe(true);
+    });
+
+    it("passes immediately when the initiator is the only human player", () => {
+      const botRoom = new Room("room-bot", "Bot Room", createSelection());
+      botRoom.addPlayer("p1", "Alice");
+      botRoom.addPlayer("bot-1", "Bot 1", "bot");
+      botRoom.addPlayer("bot-2", "Bot 2", "bot");
+
+      const result = botRoom.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
+
+      expect(result).toEqual({
+        ok: true,
+        status: "resolved",
+        result: {
+          passed: true,
+          selection: createSelection({ modeId: "wildcard" }),
+        },
+      });
+      expect(botRoom.gameSelection.modeId).toBe("wildcard");
+      expect(botRoom.configVote).toBeNull();
     });
 
     it("passes when a supermajority agrees", () => {
@@ -252,6 +301,35 @@ describe("Room", () => {
       });
     });
 
+    it("fails once all human players have voted even if bots have not", () => {
+      room.removePlayer("p3");
+      room.addPlayer("bot-1", "Bot 1", "bot");
+      room.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
+
+      const result = room.castConfigVote("p2", false);
+
+      expect(result.ok).toBe(true);
+      expect(result.result).toEqual({
+        passed: false,
+        selection: createSelection({ modeId: "wildcard" }),
+      });
+    });
+
+    it("re-resolves an active vote when a human leaves", () => {
+      room.removePlayer("p3");
+      room.addPlayer("bot-1", "Bot 1", "bot");
+      room.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
+
+      expect(room.removePlayer("p2")).toBe(true);
+      expect(room.gameSelection.modeId).toBe("wildcard");
+      expect(room.configVote).toBeNull();
+      expect(room.consumePendingConfigVoteResult()).toEqual({
+        passed: true,
+        selection: createSelection({ modeId: "wildcard" }),
+      });
+      expect(room.consumePendingConfigVoteResult()).toBeNull();
+    });
+
     it("updates the selected mode after a passed vote", () => {
       room.startConfigVote("p1", createSelection({ modeId: "wildcard" }));
       room.castConfigVote("p2", true);
@@ -267,14 +345,18 @@ describe("Room", () => {
       const result = room.castConfigVote("p1", true);
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBeTruthy();
+      if (!result.ok) {
+        expect(result.error).toBeTruthy();
+      }
     });
 
     it("requires an active config vote", () => {
       const result = room.castConfigVote("p1", true);
 
       expect(result.ok).toBe(false);
-      expect(result.error).toBeTruthy();
+      if (!result.ok) {
+        expect(result.error).toBeTruthy();
+      }
     });
   });
 });
@@ -290,7 +372,7 @@ describe("RoomManager", () => {
     const room = roomManager.createRoom("Test Room", "p1", "Alice", createSelection());
 
     expect(room.playerCount).toBe(1);
-    expect(room.getPlayer("p1")).toBeDefined();
+    expect(room.getPlayer("p1")).toMatchObject({ playerType: "human" });
     expect(room.gameSelection.modeId).toBe("classic");
   });
 
@@ -354,8 +436,20 @@ describe("RoomManager", () => {
     it("removes the room when the last player leaves", () => {
       const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
 
-      roomManager.leaveRoom(room.roomId, "p1");
+      const result = roomManager.leaveRoom(room.roomId, "p1");
 
+      expect(result).toBeUndefined();
+      expect(roomManager.getRoom(room.roomId)).toBeUndefined();
+    });
+
+    it("removes the room when the last human leaves even if bots remain", () => {
+      const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
+      roomManager.addBot(room.roomId, "bot-1", "Bot 1");
+      roomManager.addBot(room.roomId, "bot-2", "Bot 2");
+
+      const result = roomManager.leaveRoom(room.roomId, "p1");
+
+      expect(result).toBeUndefined();
       expect(roomManager.getRoom(room.roomId)).toBeUndefined();
     });
   });
@@ -371,4 +465,55 @@ describe("RoomManager", () => {
       expect(roomManager.findRoomByPlayer("p999")).toBeUndefined();
     });
   });
+
+  describe("bot management", () => {
+    it("adds a bot to an existing waiting room", () => {
+      const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
+
+      const result = roomManager.addBot(room.roomId, "bot-1", "Bot 1");
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.seatIndex).toBe(1);
+        expect(result.room.getPlayer("bot-1")).toMatchObject({
+          playerType: "bot",
+          isReady: true,
+        });
+      }
+    });
+
+    it("rejects duplicate bot ids", () => {
+      const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
+      roomManager.addBot(room.roomId, "bot-1", "Bot 1");
+
+      const result = roomManager.addBot(room.roomId, "bot-1", "Bot 1 Again");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBe("Player is already in the room.");
+      }
+    });
+
+    it("removes a bot by player id", () => {
+      const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
+      roomManager.addBot(room.roomId, "bot-1", "Bot 1");
+
+      const result = roomManager.removeBot(room.roomId, "bot-1");
+
+      expect(result.ok).toBe(true);
+      expect(room.getPlayer("bot-1")).toBeUndefined();
+    });
+
+    it("does not remove a human through removeBot", () => {
+      const room = roomManager.createRoom("Test", "p1", "Alice", createSelection());
+
+      const result = roomManager.removeBot(room.roomId, "p1");
+
+      expect(result.ok).toBe(false);
+      expect(room.getPlayer("p1")).toBeDefined();
+    });
+  });
 });
+
+
+

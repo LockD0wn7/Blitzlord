@@ -311,6 +311,83 @@ describe("Socket handlers 集成测试", () => {
     });
   });
 
+  describe("bot room management", () => {
+    it("adds and removes bots while the room is waiting", async () => {
+      const { client: c1 } = await createRoomWithClient("token-bot-room-1", "Alice", "Bot Room");
+
+      const firstUpdatePromise = waitForEvent<RoomDetail>(c1, "room:updated");
+      const firstAddResultPromise = emitRaw<{ ok: boolean; error?: string; playerId?: string }>(c1, "room:addBot");
+      const [firstAddResult, firstUpdate] = await Promise.all([firstAddResultPromise, firstUpdatePromise]);
+      expect(firstAddResult.ok).toBe(true);
+      expect(firstAddResult.playerId).toBeTruthy();
+      expect(firstUpdate.players).toHaveLength(2);
+      expect(firstUpdate.players.find((player) => player.playerId === firstAddResult.playerId)?.playerType).toBe("bot");
+
+      const secondUpdatePromise = waitForEvent<RoomDetail>(c1, "room:updated");
+      const secondAddResultPromise = emitRaw<{ ok: boolean; error?: string; playerId?: string }>(c1, "room:addBot");
+      const [secondAddResult, secondUpdate] = await Promise.all([secondAddResultPromise, secondUpdatePromise]);
+      expect(secondAddResult.ok).toBe(true);
+      expect(secondAddResult.playerId).toBeTruthy();
+      expect(secondUpdate.players).toHaveLength(3);
+      expect(secondUpdate.players.filter((player) => player.playerType === "bot")).toHaveLength(2);
+
+      const syncResult = await new Promise<{ ok: boolean; room?: RoomDetail; error?: string }>((resolve) => {
+        c1.emit("room:requestSync", resolve);
+      });
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.room?.players.filter((player) => player.playerType === "bot")).toHaveLength(2);
+      expect(syncResult.room?.players.filter((player) => player.playerType === "bot").every((player) => player.isReady)).toBe(true);
+
+      const removeUpdatePromise = waitForEvent<RoomDetail>(c1, "room:updated");
+      const removeResultPromise = emitRaw<{ ok: boolean; error?: string }>(
+        c1,
+        "room:removeBot",
+        { playerId: firstAddResult.playerId! },
+      );
+      const [removeResult, removeUpdate] = await Promise.all([removeResultPromise, removeUpdatePromise]);
+      expect(removeResult.ok).toBe(true);
+      expect(removeUpdate.players).toHaveLength(2);
+      expect(removeUpdate.players.some((player) => player.playerId === firstAddResult.playerId)).toBe(false);
+    });
+
+    it("starts with bots and lets bots advance the calling phase", async () => {
+      const humanPlayerId = "token-bot-room-2";
+      const { client: c1 } = await createRoomWithClient(humanPlayerId, "Alice", "Bot Match Room");
+      const firstBot = await emitRaw<{ ok: boolean; error?: string; playerId?: string }>(c1, "room:addBot");
+      const secondBot = await emitRaw<{ ok: boolean; error?: string; playerId?: string }>(c1, "room:addBot");
+      expect(firstBot.ok).toBe(true);
+      expect(secondBot.ok).toBe(true);
+
+      const startedPromise = waitForEvent<void>(c1, "match:started", 8000);
+      const initialSnapshotPromise = waitForEvent<GameSnapshot>(c1, "match:syncState", 8000);
+      c1.emit("match:ready");
+
+      await startedPromise;
+      const initialSnapshot = await initialSnapshotPromise;
+      const botIds = [firstBot.playerId!, secondBot.playerId!];
+
+      expect(initialSnapshot.players.filter((player) => player.playerType === "bot")).toHaveLength(2);
+
+      const botProgressPromise = waitForGameSnapshot(
+        c1,
+        (snapshot) => snapshot.callSequence.some((entry) => botIds.includes(entry.playerId)),
+        8000,
+      );
+
+      if (initialSnapshot.currentTurn === humanPlayerId) {
+        const bidResult = await emitRaw<{ ok: boolean; error?: string }>(
+          c1,
+          "match:action",
+          { type: "callBid", bid: 0 },
+        );
+        expect(bidResult.ok).toBe(true);
+      }
+
+      const progressedSnapshot = await botProgressPromise;
+      expect(progressedSnapshot.phase === GamePhase.Calling || progressedSnapshot.phase === GamePhase.Playing).toBe(true);
+      expect(progressedSnapshot.callSequence.some((entry) => botIds.includes(entry.playerId))).toBe(true);
+    });
+  });
   describe("room:voteConfigChange", () => {
     it("can switch the room mode through a config vote", async () => {
       const { client: c1, roomId } = await createRoomWithClient("token-v1", "Alice", "Config Vote Room");
@@ -358,6 +435,60 @@ describe("Socket handlers 集成测试", () => {
     });
   });
 
+  describe("room:addBot / room:removeBot", () => {
+    it("can add bots to fill a room and start once the human is ready", async () => {
+      const { client: c1 } = await createRoomWithClient("token-bot1", "Alice", "Bot Fill Room");
+
+      const addFirst = await new Promise<{ ok: boolean; playerId?: string; error?: string }>((resolve) => {
+        c1.emit("room:addBot", resolve);
+      });
+      expect(addFirst.ok).toBe(true);
+      expect(addFirst.playerId).toBeTruthy();
+
+      const addSecond = await new Promise<{ ok: boolean; playerId?: string; error?: string }>((resolve) => {
+        c1.emit("room:addBot", resolve);
+      });
+      expect(addSecond.ok).toBe(true);
+      expect(addSecond.playerId).toBeTruthy();
+
+      const startedPromise = waitForEvent<void>(c1, "match:started");
+      const syncPromise = waitForEvent<GameSnapshot>(c1, "match:syncState");
+      c1.emit("match:ready");
+
+      await startedPromise;
+      const snapshot = await syncPromise;
+      expect(snapshot.players).toHaveLength(3);
+      expect(snapshot.players.filter((player) => player.playerType === "bot")).toHaveLength(2);
+      expect(snapshot.players.find((player) => player.playerId === "token-bot1")?.playerType).toBe("human");
+    });
+
+    it("can remove a bot while the room is waiting", async () => {
+      const { client: c1 } = await createRoomWithClient("token-bot2", "Alice", "Bot Remove Room");
+
+      const addBot = await new Promise<{ ok: boolean; playerId?: string; error?: string }>((resolve) => {
+        c1.emit("room:addBot", resolve);
+      });
+      expect(addBot.ok).toBe(true);
+      expect(addBot.playerId).toBeTruthy();
+
+      const removeBot = await new Promise<{ ok: boolean; error?: string }>((resolve) => {
+        c1.emit("room:removeBot", { playerId: addBot.playerId! }, resolve);
+      });
+      expect(removeBot.ok).toBe(true);
+
+      const syncResult = await new Promise<{
+        ok: boolean;
+        room?: RoomDetail;
+        error?: string;
+      }>((resolve) => {
+        c1.emit("room:requestSync", resolve);
+      });
+
+      expect(syncResult.ok).toBe(true);
+      expect(syncResult.room?.players).toHaveLength(1);
+      expect(syncResult.room?.players[0].playerId).toBe("token-bot2");
+    });
+  });
   describe("room:requestSync", () => {
     it("已在房间中的玩家应拿到当前房间详情", async () => {
       const { client: c1, roomId } = await createRoomWithClient("token-r1", "Alice", "同步房间");

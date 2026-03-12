@@ -12,9 +12,9 @@ import {
 } from "@blitzlord/shared";
 
 const PLAYERS: MatchPlayer[] = [
-  { playerId: "p1", playerName: "Alice" },
-  { playerId: "p2", playerName: "Bob" },
-  { playerId: "p3", playerName: "Carol" },
+  { playerId: "p1", playerName: "Alice", playerType: "human" },
+  { playerId: "p2", playerName: "Bob", playerType: "human" },
+  { playerId: "p3", playerName: "Carol", playerType: "human" },
 ];
 
 function createSelection(modeId: "classic" | "wildcard" = "classic"): RoomGameSelection {
@@ -311,6 +311,7 @@ describe("DoudizhuMatchRuntime", () => {
       expect(snapshot.phase).toBe(GamePhase.Calling);
       expect(snapshot.myHand).toHaveLength(17);
       expect(snapshot.players).toHaveLength(3);
+      expect(snapshot.players.every((player) => player.playerType === "human")).toBe(true);
 
       // 其他玩家只有牌数
       const otherPlayer = snapshot.players.find((p) => p.playerId !== caller)!;
@@ -345,6 +346,22 @@ describe("DoudizhuMatchRuntime", () => {
       const caller = gm.currentCallerId!;
       const snapshot = gm.getFullState(caller);
       expect(snapshot.bottomCards).toHaveLength(0);
+    });
+  });
+
+  describe("playerType", () => {
+    it("preserves player types in snapshots", () => {
+      const gm = new DoudizhuMatchRuntime("room-1", [
+        { playerId: "p1", playerName: "Alice", playerType: "human" },
+        { playerId: "bot-1", playerName: "Bot 1", playerType: "bot" },
+        { playerId: "p3", playerName: "Carol", playerType: "human" },
+      ], createSelection());
+      const snapshot = gm.getFullState("p1");
+
+      expect(snapshot.players).toEqual(expect.arrayContaining([
+        expect.objectContaining({ playerId: "p1", playerType: "human" }),
+        expect.objectContaining({ playerId: "bot-1", playerType: "bot" }),
+      ]));
     });
   });
 

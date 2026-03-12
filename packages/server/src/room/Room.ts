@@ -1,5 +1,5 @@
 import { RoomStatus } from "@blitzlord/shared";
-import type { RoomDetail, RoomInfo, RoomPlayer } from "@blitzlord/shared";
+import type { PlayerType, RoomDetail, RoomInfo, RoomPlayer } from "@blitzlord/shared";
 
 export interface RoomGameSelection {
   gameId: string;
@@ -14,6 +14,16 @@ export interface ConfigVote {
   initiator: string;
   votes: Map<string, boolean>;
 }
+
+export interface ConfigVoteResult {
+  passed: boolean;
+  selection: RoomGameSelection;
+}
+
+export type StartConfigVoteResponse =
+  | { ok: true; status: "started" }
+  | { ok: true; status: "resolved"; result: ConfigVoteResult }
+  | { ok: false; error: string };
 
 function cloneConfig(config: Record<string, unknown>): Record<string, unknown> {
   return { ...config };
@@ -72,6 +82,7 @@ export class Room {
   private _players: RoomPlayer[] = [];
   private _gameSelection: RoomGameSelection;
   private _configVote: ConfigVote | null = null;
+  private _pendingConfigVoteResult: ConfigVoteResult | null = null;
 
   constructor(roomId: string, roomName: string, selection: RoomGameSelection) {
     this.roomId = roomId;
@@ -111,7 +122,7 @@ export class Room {
     return this._players.length >= this.maxPlayers;
   }
 
-  addPlayer(playerId: string, playerName: string): number | null {
+  addPlayer(playerId: string, playerName: string, playerType: PlayerType = "human"): number | null {
     if (this.isFull) return null;
     if (this._players.some((player) => player.playerId === playerId)) return null;
 
@@ -124,7 +135,8 @@ export class Room {
     this._players.push({
       playerId,
       playerName,
-      isReady: false,
+      playerType,
+      isReady: playerType === "bot",
       isOnline: true,
       seatIndex,
     });
@@ -135,7 +147,19 @@ export class Room {
   removePlayer(playerId: string): boolean {
     const index = this._players.findIndex((player) => player.playerId === playerId);
     if (index === -1) return false;
-    this._players.splice(index, 1);
+
+    const [removedPlayer] = this._players.splice(index, 1);
+
+    if (this._configVote) {
+      this._configVote.votes.delete(playerId);
+      if (removedPlayer.playerType === "human") {
+        const resolution = this.settleConfigVoteIfResolved();
+        if (resolution) {
+          this._pendingConfigVoteResult = resolution;
+        }
+      }
+    }
+
     return true;
   }
 
@@ -146,7 +170,7 @@ export class Room {
   setReady(playerId: string, ready: boolean): boolean {
     const player = this.getPlayer(playerId);
     if (!player) return false;
-    player.isReady = ready;
+    player.isReady = player.playerType === "bot" ? true : ready;
     return true;
   }
 
@@ -158,7 +182,7 @@ export class Room {
   }
 
   get allReady(): boolean {
-    return this.isFull && this._players.every((player) => player.isReady);
+    return this.isFull && this._players.every((player) => player.playerType === "bot" || player.isReady);
   }
 
   startPlaying(): void {
@@ -171,7 +195,7 @@ export class Room {
 
   resetReady(): void {
     for (const player of this._players) {
-      player.isReady = false;
+      player.isReady = player.playerType === "bot";
     }
   }
 
@@ -180,7 +204,74 @@ export class Room {
     this.resetReady();
   }
 
-  startConfigVote(playerId: string, selection: RoomGameSelection): { ok: boolean; error?: string } {
+  consumePendingConfigVoteResult(): ConfigVoteResult | null {
+    if (!this._pendingConfigVoteResult) {
+      return null;
+    }
+
+    const result: ConfigVoteResult = {
+      passed: this._pendingConfigVoteResult.passed,
+      selection: cloneSelection(this._pendingConfigVoteResult.selection),
+    };
+    this._pendingConfigVoteResult = null;
+    return result;
+  }
+
+  private getHumanPlayerIds(): Set<string> {
+    return new Set(
+      this._players
+        .filter((player) => player.playerType === "human")
+        .map((player) => player.playerId),
+    );
+  }
+
+  private resolveConfigVote(): ConfigVoteResult | null {
+    if (!this._configVote) {
+      return null;
+    }
+
+    const humanPlayerIds = this.getHumanPlayerIds();
+    const totalHumanPlayers = humanPlayerIds.size;
+    const majority = Math.max(1, Math.ceil((totalHumanPlayers * 2) / 3));
+    const humanVotes = [...this._configVote.votes.entries()].filter(([playerId]) => humanPlayerIds.has(playerId));
+    const agreeCount = humanVotes.filter(([, vote]) => vote).length;
+    const disagreeCount = humanVotes.filter(([, vote]) => !vote).length;
+
+    if (agreeCount >= majority) {
+      return {
+        passed: true,
+        selection: cloneSelection(this._configVote.selection),
+      };
+    }
+
+    if (totalHumanPlayers > 0 && (disagreeCount >= majority || humanVotes.length >= totalHumanPlayers)) {
+      return {
+        passed: false,
+        selection: cloneSelection(this._configVote.selection),
+      };
+    }
+
+    return null;
+  }
+
+  private settleConfigVoteIfResolved(): ConfigVoteResult | null {
+    const resolution = this.resolveConfigVote();
+    if (!resolution) {
+      return null;
+    }
+
+    if (resolution.passed) {
+      this._gameSelection = cloneSelection(resolution.selection);
+    }
+    this._configVote = null;
+
+    return {
+      passed: resolution.passed,
+      selection: cloneSelection(resolution.selection),
+    };
+  }
+
+  startConfigVote(playerId: string, selection: RoomGameSelection): StartConfigVoteResponse {
     if (this._status === RoomStatus.Playing) {
       return { ok: false, error: "Cannot change room config while a match is in progress." };
     }
@@ -204,13 +295,22 @@ export class Room {
       votes,
     };
 
-    return { ok: true };
+    const resolution = this.settleConfigVoteIfResolved();
+    if (!resolution) {
+      return { ok: true, status: "started" };
+    }
+
+    return {
+      ok: true,
+      status: "resolved",
+      result: resolution,
+    };
   }
 
   castConfigVote(
     playerId: string,
     agree: boolean,
-  ): { ok: boolean; error?: string; result?: { passed: boolean; selection: RoomGameSelection } } {
+  ): { ok: boolean; error?: string; result?: ConfigVoteResult } {
     if (!this._configVote) {
       return { ok: false, error: "There is no active config vote." };
     }
@@ -223,36 +323,15 @@ export class Room {
 
     this._configVote.votes.set(playerId, agree);
 
-    const totalPlayers = this._players.length;
-    const agreeCount = [...this._configVote.votes.values()].filter((vote) => vote).length;
-    const disagreeCount = [...this._configVote.votes.values()].filter((vote) => !vote).length;
-    const majority = Math.ceil((totalPlayers * 2) / 3);
-    const targetSelection = cloneSelection(this._configVote.selection);
-
-    if (agreeCount >= majority) {
-      this._gameSelection = targetSelection;
-      this._configVote = null;
-      return {
-        ok: true,
-        result: {
-          passed: true,
-          selection: cloneSelection(targetSelection),
-        },
-      };
+    const resolution = this.settleConfigVoteIfResolved();
+    if (!resolution) {
+      return { ok: true };
     }
 
-    if (disagreeCount >= majority || this._configVote.votes.size >= totalPlayers) {
-      this._configVote = null;
-      return {
-        ok: true,
-        result: {
-          passed: false,
-          selection: targetSelection,
-        },
-      };
-    }
-
-    return { ok: true };
+    return {
+      ok: true,
+      result: resolution,
+    };
   }
 
   toRoomInfo(): RoomInfo {
@@ -285,3 +364,4 @@ export class Room {
     };
   }
 }
+

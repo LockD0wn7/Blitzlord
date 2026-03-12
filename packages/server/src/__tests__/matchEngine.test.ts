@@ -6,9 +6,9 @@ import { dispatchMatchAction } from "../platform/actionHandlers.js";
 import type { MatchPlayer } from "../platform/types.js";
 
 const PLAYERS: MatchPlayer[] = [
-  { playerId: "p1", playerName: "Alice" },
-  { playerId: "p2", playerName: "Bob" },
-  { playerId: "p3", playerName: "Carol" },
+  { playerId: "p1", playerName: "Alice", playerType: "human" },
+  { playerId: "p2", playerName: "Bob", playerType: "human" },
+  { playerId: "p3", playerName: "Carol", playerType: "human" },
 ];
 
 function createSelection(modeId: "classic" | "wildcard" = "classic") {

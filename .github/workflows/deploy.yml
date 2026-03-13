@@ -124,7 +124,8 @@ jobs:
 
       - name: Deploy client static files
         run: |
-          rsync -avz --delete -e "ssh -p ${{ secrets.SERVER_PORT }}" client-dist/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/blitzlord/
+          ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "rm -rf /var/www/blitzlord/*"
+          scp -P ${{ secrets.SERVER_PORT }} -r client-dist/. ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/blitzlord/
 
       - name: Deploy and restart server
         run: |

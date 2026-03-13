@@ -33,6 +33,7 @@ interface GameState {
   callSequence: { playerId: string; bid: 0 | 1 | 2 | 3 }[];
   tracker: CardTrackerSnapshot;
   isTrackerOpen: boolean;
+  isTrackerPinned: boolean;
   wildcardRank: Rank | null;
   selectedCards: Card[];
   hintContextKey: string | null;
@@ -64,6 +65,7 @@ interface GameState {
   ) => void;
   appendTrackerPass: (entry: CardTrackerSnapshot["history"][number]) => void;
   toggleTrackerPanel: () => void;
+  toggleTrackerPin: () => void;
   toggleCardSelection: (card: Card) => void;
   clearSelection: () => void;
   applyHintSelection: (
@@ -98,6 +100,7 @@ const initialState = {
     remainingByRank: [],
   } as CardTrackerSnapshot,
   isTrackerOpen: false,
+  isTrackerPinned: false,
   wildcardRank: null as Rank | null,
   selectedCards: [] as Card[],
   hintContextKey: null as string | null,
@@ -183,6 +186,11 @@ export const useDoudizhuGameStore = create<GameState>((set) => ({
   toggleTrackerPanel: () =>
     set((state) => ({
       isTrackerOpen: !state.isTrackerOpen,
+    })),
+
+  toggleTrackerPin: () =>
+    set((state) => ({
+      isTrackerPinned: !state.isTrackerPinned,
     })),
 
   toggleCardSelection: (card) =>

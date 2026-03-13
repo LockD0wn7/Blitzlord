@@ -20,6 +20,7 @@ import CallLandlord from "./CallLandlord";
 import ScoreBoard from "./ScoreBoard";
 import CardComponent from "./CardComponent";
 import CardTrackerPanel from "./CardTrackerPanel";
+import CardTrackerBar from "./CardTrackerBar";
 
 interface GameBoardProps {
   roomId: string;
@@ -48,7 +49,9 @@ export default function GameBoard({ roomId }: GameBoardProps) {
   const gameResult = useDoudizhuGameStore((s) => s.gameResult);
   const errorMessage = useDoudizhuGameStore((s) => s.errorMessage);
   const setErrorMessage = useDoudizhuGameStore((s) => s.setErrorMessage);
+  const isTrackerPinned = useDoudizhuGameStore((s) => s.isTrackerPinned);
   const toggleTrackerPanel = useDoudizhuGameStore((s) => s.toggleTrackerPanel);
+  const toggleTrackerPin = useDoudizhuGameStore((s) => s.toggleTrackerPin);
 
   useLayoutEffect(() => {
     prepareDoudizhuBoardEntry();
@@ -201,18 +204,35 @@ export default function GameBoard({ roomId }: GameBoardProps) {
           </div>
 
           {(phase === GamePhase.Playing || phase === GamePhase.Ended) && (
-            <button
-              type="button"
-              onClick={toggleTrackerPanel}
-              className="rounded-full border border-gold/25 bg-base/35 px-3 py-1.5 text-left backdrop-blur-md transition-all duration-200 hover:border-gold/55 hover:bg-gold/10 hover:shadow-[0_0_24px_rgba(201,165,78,0.15)]"
-            >
-              <span className="block font-display text-[0.58rem] uppercase tracking-[0.24em] text-gold-light/75">
-                Ledger
-              </span>
-              <span className="block font-cn text-xs font-semibold text-gold">
-                记牌器
-              </span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={toggleTrackerPin}
+                className={`rounded-full border px-2 py-1.5 text-center backdrop-blur-md transition-all duration-200 ${
+                  isTrackerPinned
+                    ? "border-gold/50 bg-gold/15 shadow-[0_0_16px_rgba(201,165,78,0.2)]"
+                    : "border-gold/15 bg-base/35 hover:border-gold/40 hover:bg-gold/8"
+                }`}
+                title={isTrackerPinned ? "取消常驻" : "常驻记牌器"}
+                aria-label={isTrackerPinned ? "取消常驻" : "常驻记牌器"}
+              >
+                <span className={`block text-sm ${isTrackerPinned ? "text-gold" : "text-gold-light/60"}`}>
+                  {isTrackerPinned ? "📌" : "📍"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleTrackerPanel}
+                className="rounded-full border border-gold/25 bg-base/35 px-3 py-1.5 text-left backdrop-blur-md transition-all duration-200 hover:border-gold/55 hover:bg-gold/10 hover:shadow-[0_0_24px_rgba(201,165,78,0.15)]"
+              >
+                <span className="block font-display text-[0.58rem] uppercase tracking-[0.24em] text-gold-light/75">
+                  Ledger
+                </span>
+                <span className="block font-cn text-xs font-semibold text-gold">
+                  记牌器
+                </span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -288,6 +308,15 @@ export default function GameBoard({ roomId }: GameBoardProps) {
       </div>
 
       {phase === GamePhase.Ended && gameResult && <ScoreBoard />}
+
+      {isTrackerPinned && !isTrackerOpen && (phase === GamePhase.Playing || phase === GamePhase.Ended) && (
+        <CardTrackerBar
+          remainingByRank={tracker.remainingByRank}
+          wildcardRank={wildcardRank}
+          onOpenPanel={toggleTrackerPanel}
+          onUnpin={toggleTrackerPin}
+        />
+      )}
 
       <CardTrackerPanel
         open={isTrackerOpen}

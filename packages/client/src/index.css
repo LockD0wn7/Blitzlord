@@ -204,23 +204,20 @@ body {
 }
 
 .player-hand-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   padding: 0.85rem 1rem 1.15rem;
-  scrollbar-gutter: stable both-edges;
 }
 
 .player-hand-row {
-  display: inline-flex;
+  display: flex;
   align-items: flex-end;
   justify-content: center;
-  min-width: 100%;
   padding: 0.45rem 0.2rem 0.35rem;
 }
 
 .player-hand-card {
   position: relative;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   transform: translateY(var(--hand-depth, 0px)) rotate(var(--hand-tilt, 0deg));
   transform-origin: center 88%;
   transition: transform 0.18s ease, filter 0.18s ease;
@@ -235,15 +232,6 @@ body {
   transform: translateY(calc(var(--hand-depth, 0px) - 10px)) rotate(var(--hand-tilt, 0deg));
   z-index: 80 !important;
   filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.24));
-}
-
-.player-hand-scroll::-webkit-scrollbar {
-  height: 10px;
-}
-
-.player-hand-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-gold) 24%, transparent);
 }
 
 .card-shell {
@@ -449,6 +437,141 @@ body {
 .card-shell--small .card-shell__jokerLabel {
   font-size: 0.65rem;
 }
+
+/* ── Pinned Tracker Bar ── */
+
+.tracker-bar {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 30;
+  width: min(620px, calc(100vw - 32px));
+  border: 1px solid color-mix(in srgb, var(--color-gold) 22%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(10, 16, 31, 0.92) 0%, rgba(14, 22, 43, 0.94) 100%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+  animation: tracker-bar-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  pointer-events: auto;
+}
+
+@keyframes tracker-bar-enter {
+  from {
+    opacity: 0;
+    translate: -50% -10px;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    translate: -50% 0;
+    scale: 1;
+  }
+}
+
+.tracker-bar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 14%, transparent);
+}
+
+.tracker-bar__title {
+  color: var(--color-gold);
+  font-family: var(--font-cn);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.tracker-bar__actions {
+  display: flex;
+  gap: 2px;
+}
+
+.tracker-bar__btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-warm-muted);
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tracker-bar__btn:hover {
+  color: var(--color-warm);
+  background: color-mix(in srgb, var(--color-gold) 12%, transparent);
+}
+
+.tracker-bar__grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 10px 10px;
+}
+
+.tracker-bar__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 36px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--color-surface-border) 50%, transparent);
+  border-radius: 8px;
+  background: rgba(21, 31, 58, 0.7);
+  transition: all 0.15s ease;
+}
+
+.tracker-bar__cell--key {
+  border-color: color-mix(in srgb, var(--color-gold) 28%, var(--color-surface-border));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold) 8%, transparent);
+}
+
+.tracker-bar__cell--wild {
+  border-color: color-mix(in srgb, #eab308 40%, transparent);
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.15);
+}
+
+.tracker-bar__cell--empty {
+  opacity: 0.35;
+}
+
+.tracker-bar__rank {
+  color: var(--color-warm-muted);
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.tracker-bar__count {
+  color: var(--color-warm);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tracker-bar__cell--empty .tracker-bar__count {
+  color: var(--color-muted);
+}
+
+/* ── Tracker Panel Overlay ── */
 
 .tracker-panel-overlay {
   position: fixed;
@@ -795,10 +918,6 @@ body {
     padding: 0.7rem 0.45rem 0.95rem;
   }
 
-  .player-hand-row {
-    justify-content: flex-start;
-  }
-
   .player-hand-card + .player-hand-card {
     margin-left: -18px;
   }
@@ -825,5 +944,24 @@ body {
 
   .tracker-rank-list {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tracker-bar {
+    top: 48px;
+    width: calc(100vw - 16px);
+    border-radius: 12px;
+  }
+
+  .tracker-bar__cell {
+    width: 32px;
+    height: 34px;
+  }
+
+  .tracker-bar__rank {
+    font-size: 0.56rem;
+  }
+
+  .tracker-bar__count {
+    font-size: 0.74rem;
   }
 }

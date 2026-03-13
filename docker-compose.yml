@@ -1,0 +1,10 @@
+services:
+  server:
+    image: ghcr.io/lockd0wn7/blitzlord-server:latest
+    container_name: blitzlord-server
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    restart: unless-stopped

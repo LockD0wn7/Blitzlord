@@ -1,0 +1,135 @@
+# 部署到自有服务器
+#
+# 首次部署前，服务器需要手动完成以下配置：
+#
+# 1. 安装 Docker：
+#    curl -fsSL https://get.docker.com | sh
+#    sudo usermod -aG docker $USER
+#
+# 2. 创建前端目录：
+#    sudo mkdir -p /var/www/blitzlord
+#    sudo chown $USER:$USER /var/www/blitzlord
+#
+# 3. 创建 docker-compose 工作目录并放置 docker-compose.yml：
+#    mkdir -p ~/blitzlord && cd ~/blitzlord
+#    （deploy job 会自动 SCP docker-compose.yml 到这里）
+#
+# 4. 配置 nginx（示例）：
+#    server {
+#        listen 80;
+#        server_name _;
+#
+#        root /var/www/blitzlord;
+#        index index.html;
+#
+#        location / {
+#            try_files $uri $uri/ /index.html;
+#        }
+#
+#        location /socket.io/ {
+#            proxy_pass http://127.0.0.1:3001;
+#            proxy_http_version 1.1;
+#            proxy_set_header Upgrade $http_upgrade;
+#            proxy_set_header Connection "upgrade";
+#            proxy_set_header Host $host;
+#            proxy_set_header X-Real-IP $remote_addr;
+#        }
+#    }
+#
+# 5. 在 GitHub 仓库 Settings → Secrets → Actions 中添加：
+#    - SERVER_HOST: 服务器 IP
+#    - SERVER_PORT: SSH 端口（如 5408）
+#    - SERVER_USER: SSH 用户名
+#    - SERVER_SSH_KEY: SSH 私钥（ssh-keygen -t ed25519 生成，公钥加到服务器 authorized_keys）
+
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: lockd0wn7/blitzlord-server
+
+jobs:
+  build-server-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @blitzlord/client build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: packages/client/dist
+
+  deploy:
+    needs: [build-server-image, build-client]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: docker-compose.yml
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: client-dist
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy client static files
+        run: |
+          rsync -avz --delete -e "ssh -p ${{ secrets.SERVER_PORT }}" client-dist/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/blitzlord/
+
+      - name: Deploy and restart server
+        run: |
+          scp -P ${{ secrets.SERVER_PORT }} docker-compose.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/blitzlord/docker-compose.yml
+          ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "\
+            cd ~/blitzlord && \
+            docker compose pull && \
+            docker compose up -d"
